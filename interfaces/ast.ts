@@ -1,4 +1,4 @@
-export type NodeType = 'Symbol' | 'Concat' | 'Or' | 'Kleene';
+export type NodeType = 'Symbol' | 'Concat' | 'Or' | 'Kleene' | 'Epsilon';
 
 export interface Node {
     id: number | null;
@@ -34,6 +34,10 @@ export interface Kleene extends Node {
 
 export interface Symbol extends Node {
     kind: 'Symbol';
+}
+
+export interface Epsilon extends Node {
+    kind: 'Epsilon';
 }
 
 export interface FollowPosInterface {

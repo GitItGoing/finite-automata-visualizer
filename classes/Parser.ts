@@ -2,7 +2,7 @@ import {
     AbstractSyntaxTreeInterface,
     FollowPosInterface,
 } from '../interfaces/ast';
-import { Concat, Kleene, Or, Symbol, Node } from '../interfaces/ast';
+import { Concat, Kleene, Or, Symbol, Epsilon, Node } from '../interfaces/ast';
 import { Token, TokenType } from '../interfaces/lexer';
 import { tokenize } from '../utils/lexer';
 
@@ -81,6 +81,11 @@ export default class Parser {
                 node.firstpos = node.body.firstpos;
                 node.lastpos = node.body.lastpos;
                 break;
+            case 'Epsilon':
+                node.nullable = true;
+                node.firstpos = [];
+                node.lastpos = [];
+                break;
         }
     };
 
@@ -109,6 +114,8 @@ export default class Parser {
                     traverse(node.right);
                     break;
                 case 'Symbol':
+                    break;
+                case 'Epsilon':
                     break;
             }
         };
@@ -212,6 +219,16 @@ export default class Parser {
         const tk = this.at().type;
 
         switch (tk) {
+            case TokenType.Epsilon:
+                this.eat();
+                return {
+                    kind: 'Epsilon',
+                    value: 'e',
+                    id: null,
+                    nullable: true,
+                    firstpos: [],
+                    lastpos: [],
+                } as Epsilon;
             case TokenType.Symbol:
                 this.idCount += 1;
                 return {

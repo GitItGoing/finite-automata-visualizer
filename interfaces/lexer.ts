@@ -6,6 +6,7 @@ export enum TokenType {
     OpenParen,
     CloseParen,
     EOL,
+    Epsilon,
 }
 
 export interface Token {
