@@ -131,8 +131,11 @@ export default function Page() {
                     !(link.source.id === sourceId && link.target.id === targetId)
             )
         );
+        if (regexHeader && !regexHeader.endsWith(' (edited)')) {
+            setRegexHeader(regexHeader + ' (edited)');
+        }
         setDeleteDialog(null);
-    }, [deleteDialog, pushHistory]);
+    }, [deleteDialog, pushHistory, regexHeader]);
 
     const handleNodeTap = useCallback((nodeId: number) => {
         if (isAnimating) return;
@@ -186,8 +189,11 @@ export default function Page() {
             addLink(toId, fromId);
         }
 
+        if (regexHeader && !regexHeader.endsWith(' (edited)')) {
+            setRegexHeader(regexHeader + ' (edited)');
+        }
         setAddArrowDialog(null);
-    }, [addArrowDialog, nodes, links, pushHistory]);
+    }, [addArrowDialog, nodes, links, pushHistory, regexHeader]);
 
     const nodeDisplayName = (id: number): string => {
         if (id === -1) return 'Dead State';
