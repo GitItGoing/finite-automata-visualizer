@@ -1,6 +1,5 @@
 import { NodeInterface, LinkInterface } from '../interfaces/graph';
 import { FollowPosInterface } from '../interfaces/ast';
-import { Transition } from '../constants/transitions';
 
 export const findNodeByTargetValues = (
     target: number[],
@@ -16,39 +15,43 @@ export const findNodeByTargetValues = (
     return null;
 };
 
-export const getNewNodes = (
-    currentNode: NodeInterface,
-    followpos: FollowPosInterface[]
-) => {
-    let a = [];
-    let b = [];
-
-    currentNode.values.forEach((value) => {
-        if (followpos[value - 1].symbol === 'a') {
-            if (a.length == 0) {
-                a = followpos[value - 1].followpos;
-            } else {
-                a = [...a, ...followpos[value - 1].followpos];
-            }
-            a = a.filter((item, index, self) => {
-                return self.indexOf(item) === index;
-            });
-        } else if (followpos[value - 1].symbol === 'b') {
-            if (b.length == 0) {
-                b = followpos[value - 1].followpos;
-            } else {
-                b = [...b, ...followpos[value - 1].followpos];
-            }
-            b = b.filter((item, index, self) => {
-                return self.indexOf(item) === index;
-            });
+/** Extract the alphabet (unique symbols) from followpos, excluding '#' */
+export const getAlphabet = (followpos: FollowPosInterface[]): string[] => {
+    const seen: { [key: string]: boolean } = {};
+    followpos.forEach((fp) => {
+        if (fp.symbol !== '#') {
+            seen[fp.symbol] = true;
         }
     });
+    return Object.keys(seen).sort();
+};
 
-    a.sort();
-    b.sort();
+/**
+ * For a given node, compute the followpos-union for each symbol in the alphabet.
+ * Returns a map: symbol -> sorted array of position numbers.
+ */
+export const getNewNodesBySymbol = (
+    currentNode: NodeInterface,
+    followpos: FollowPosInterface[]
+): Map<string, number[]> => {
+    const result = new Map<string, number[]>();
 
-    return { a, b };
+    currentNode.values.forEach((value) => {
+        const fp = followpos[value - 1];
+        if (fp.symbol === '#') return;
+
+        const existing = result.get(fp.symbol) || [];
+        existing.push(...fp.followpos);
+        // deduplicate
+        result.set(fp.symbol, existing.filter((v, i, a) => a.indexOf(v) === i));
+    });
+
+    // sort each array
+    result.forEach((arr, key) => {
+        result.set(key, arr.sort((a, b) => a - b));
+    });
+
+    return result;
 };
 
 export const isArrayPresent = (
@@ -137,6 +140,9 @@ export const generateNodesAndLinks = (
         return data.symbol === '#';
     }).number;
 
+    const alphabet = getAlphabet(followpos);
+    const allSymbolsLabel = alphabet.join(',');
+
     let nodes: NodeInterface[] = [
         { id: 1, values: firstpos, group: 1, isFinalState: false },
     ];
@@ -157,43 +163,33 @@ export const generateNodesAndLinks = (
         const newDeadState = generateNode(deadStateId, [], 1, finalState);
         deadState = newDeadState;
         nodes.push(deadState);
-        const dead = generateLink(deadState, deadState, Transition.AB);
+        const dead = generateLink(deadState, deadState, allSymbolsLabel);
         links.push(dead);
     };
 
     while (queue.length > 0) {
         const currentNode = queue.shift();
 
-        const currentSymbol = followpos[currentNode.id - 1].symbol;
+        const currentSymbol = followpos[currentNode.id - 1]?.symbol;
 
-        const { a, b } = getNewNodes(currentNode, followpos);
+        const symbolMap = getNewNodesBySymbol(currentNode, followpos);
 
         const potentialNewNodes = [];
 
-        if (a.length !== 0) {
-            potentialNewNodes.push({
-                transition: Transition.A,
-                list: a,
-            });
-        } else if (currentSymbol !== '#') {
-            if (deadState === null) {
-                generateDeadState();
+        for (const sym of alphabet) {
+            const positions = symbolMap.get(sym);
+            if (positions && positions.length > 0) {
+                potentialNewNodes.push({
+                    transition: sym,
+                    list: positions,
+                });
+            } else if (currentSymbol !== '#') {
+                if (deadState === null) {
+                    generateDeadState();
+                }
+                const newLink = generateLink(currentNode, deadState, sym);
+                links.push(newLink);
             }
-            const newLink = generateLink(currentNode, deadState, Transition.A);
-            links.push(newLink);
-        }
-
-        if (b.length !== 0) {
-            potentialNewNodes.push({
-                transition: Transition.B,
-                list: b,
-            });
-        } else if (currentSymbol !== '#') {
-            if (deadState === null) {
-                generateDeadState();
-            }
-            const newLink = generateLink(currentNode, deadState, Transition.B);
-            links.push(newLink);
         }
 
         potentialNewNodes.forEach((potential) => {
@@ -257,60 +253,33 @@ export const generateNodesAndLinks = (
         });
     }
 
-    // Find final state
+    // Ensure all final states have transitions for every symbol (completeness)
+    const finalStateNodes = nodes.filter((node) => node.isFinalState);
 
-    let finalStateNode = {} as NodeInterface;
+    for (const finalStateNode of finalStateNodes) {
+        const existingSymbols = new Set<string>();
 
-    nodes.forEach((node) => {
-        if (node.isFinalState) {
-            finalStateNode = node;
-        }
-    });
-
-    let finalEdgesState = Transition.NONE as Transition;
-
-    links.forEach((link) => {
-        if (link.source === finalStateNode) {
-            if (link.transition === Transition.A) {
-                if (finalEdgesState === Transition.B) {
-                    finalEdgesState = Transition.AB;
-                    return;
-                }
-                finalEdgesState = Transition.A;
-            } else if (link.transition === Transition.B) {
-                if (finalEdgesState === Transition.A) {
-                    finalEdgesState = Transition.AB;
-                    return;
-                }
-                finalEdgesState = Transition.B;
-            } else if (
-                link.transition === Transition.AB ||
-                link.transition === Transition.BA
-            ) {
-                finalEdgesState = Transition.AB;
+        links.forEach((link) => {
+            if (link.source === finalStateNode) {
+                // Parse comma-separated transitions
+                link.transition.split(',').forEach((s) => existingSymbols.add(s));
             }
+        });
+
+        const missingSymbols = alphabet.filter((s) => !existingSymbols.has(s));
+
+        if (missingSymbols.length > 0) {
+            if (deadState === null) {
+                generateDeadState();
+            }
+            const newLink = generateLink(
+                finalStateNode,
+                deadState,
+                missingSymbols.join(',')
+            );
+            links.push(newLink);
         }
-    });
-
-    if (finalEdgesState !== Transition.AB) {
-        if (deadState === null) {
-            generateDeadState();
-        }
     }
 
-    let newLink = null;
-
-    if (finalEdgesState === Transition.A) {
-        newLink = generateLink(finalStateNode, deadState, Transition.B);
-    } else if (finalEdgesState === Transition.B) {
-        newLink = generateLink(finalStateNode, deadState, Transition.A);
-    } else if (finalEdgesState === Transition.NONE) {
-        newLink = generateLink(finalStateNode, deadState, Transition.AB);
-    }
-
-    if (newLink !== null) {
-        links.push(newLink);
-    }
-
-    return { nodes, links };
+    return { nodes, links, alphabet };
 };
