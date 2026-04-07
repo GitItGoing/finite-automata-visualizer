@@ -143,13 +143,13 @@ function SidePanel(props: PropsInterface) {
             return 'Invalid regex pattern: Cannot start with ".", "|", or "*"';
         }
 
-        // Check if the input contains letters other than "a" or "b"
-        if (/[^\Wa-b]/i.test(regex)) {
-            return 'Regex can only contain alphabet letters "a" or "b"';
+        // Check if the input contains letters other than "a", "b", or "e"
+        if (/[^\Wa-be]/i.test(regex)) {
+            return 'Regex can only contain alphabet letters "a", "b", or "e" (epsilon)';
         }
 
-        // Check if the input contains characters other than "a", "b", ".", "*", "|", "(", ")"
-        if (/[^ab.*|()]/.test(regex)) {
+        // Check if the input contains characters other than "a", "b", "e", ".", "*", "|", "(", ")"
+        if (/[^abe.*|()]/.test(regex)) {
             return 'Invalid regex pattern';
         }
 
@@ -166,11 +166,9 @@ function SidePanel(props: PropsInterface) {
         }
 
         if (regex.length > 1) {
-            // Additional check for concatenation: "ab" or "ba"
-            if (/ab|ba/.test(regex)) {
+            // Additional check for concatenation: two adjacent letters need "."
+            if (/[abe][abe]/.test(regex)) {
                 return 'Must be separated by "." for concatenation';
-            } else if (/(.)\1/.test(regex)) {
-                return 'Invalid regex pattern';
             }
         }
 

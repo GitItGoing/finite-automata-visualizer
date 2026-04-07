@@ -47,6 +47,8 @@ export default function Page() {
     const [animationLastIndex, setAnimationLastIndex] = useState<number>();
 
     const [showWelcomeModal, setShowWelcomeModal] = useState<boolean>(false);
+    const [useQNotation, setUseQNotation] = useState<boolean>(false);
+    const [useDoubleRing, setUseDoubleRing] = useState<boolean>(false);
 
     const disableAnimateInput = regexHeader.length === 0;
 
@@ -433,8 +435,30 @@ export default function Page() {
                     <h1 className="absolute top-5 text-sky-500 text-3xl font-bold z-10">
                         {regexHeader}
                     </h1>
+                    <div className="absolute top-14 z-10 flex gap-2">
+                        <button
+                            onClick={() => setUseQNotation(!useQNotation)}
+                            className={`px-3 py-1 rounded-full text-xs font-medium transition duration-200 border ${
+                                useQNotation
+                                    ? 'bg-sky-500 text-white border-sky-500'
+                                    : 'bg-gray-50 text-gray-500 border-gray-300 hover:border-sky-400'
+                            }`}
+                        >
+                            q-notation
+                        </button>
+                        <button
+                            onClick={() => setUseDoubleRing(!useDoubleRing)}
+                            className={`px-3 py-1 rounded-full text-xs font-medium transition duration-200 border ${
+                                useDoubleRing
+                                    ? 'bg-sky-500 text-white border-sky-500'
+                                    : 'bg-gray-50 text-gray-500 border-gray-300 hover:border-sky-400'
+                            }`}
+                        >
+                            double ring
+                        </button>
+                    </div>
                 </div>
-                {nodes && links && <DFA nodes={nodes} links={links} />}
+                {nodes && links && <DFA nodes={nodes} links={links} useQNotation={useQNotation} useDoubleRing={useDoubleRing} />}
                 <section className="fixed bottom-3 w-full flex justify-center">
                     <div className="flex flex-col gap-2 w-[90%] max-w-[750px]">
                         <div

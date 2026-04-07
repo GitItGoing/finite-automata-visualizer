@@ -22,6 +22,8 @@ import { StateTypes } from '../constants/state';
 interface PropsInterface {
     nodes: NodeInterface[];
     links: LinkInterface[];
+    useQNotation?: boolean;
+    useDoubleRing?: boolean;
 }
 
 const nodeTypes: NodeTypes = {
@@ -35,7 +37,7 @@ const edgeTypes: EdgeTypes = {
 };
 
 const DFA = (props: PropsInterface) => {
-    const { nodes, links } = props;
+    const { nodes, links, useQNotation = false, useDoubleRing = false } = props;
 
     let bidirectionals = [];
 
@@ -91,11 +93,15 @@ const DFA = (props: PropsInterface) => {
     const diagramNodes = nodes.map((node, index) => {
         const isBidirectional = checkNodeBidirectionality(node);
 
-        const label = node.isFinalState
+        const isFinalState = node.isFinalState;
+        const isStartState = node.id === 1;
+        const isDeadState = node.id === -1;
+
+        const label = isFinalState
             ? StateTypes.FINAL
-            : node.id === 1
+            : isStartState
               ? StateTypes.START
-              : node.id === -1
+              : isDeadState
                 ? StateTypes.DEAD
                 : node.id.toString();
 
@@ -107,6 +113,12 @@ const DFA = (props: PropsInterface) => {
                 label,
                 active,
                 isBidirectional,
+                useQNotation,
+                useDoubleRing,
+                qIndex: index,
+                isFinalState,
+                isStartState,
+                isDeadState,
             },
             position: {
                 x: 75 * index + 3.1 ** (index + 1),
@@ -174,7 +186,7 @@ const DFA = (props: PropsInterface) => {
 
     useEffect(() => {
         setNodeState(diagramNodes);
-    }, [nodes, links]);
+    }, [nodes, links, useQNotation, useDoubleRing]);
 
     return (
         <div className="h-dvh w-full">

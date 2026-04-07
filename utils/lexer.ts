@@ -23,6 +23,8 @@ export const tokenize = (string: string): Token[] => {
             tokens.push(token(src.shift(), TokenType.Kleene));
         } else if (src[0] == '.') {
             tokens.push(token(src.shift(), TokenType.Concat));
+        } else if (src[0] == 'e') {
+            tokens.push(token(src.shift(), TokenType.Epsilon));
         } else if (isLetter(src[0])) {
             tokens.push(token(src.shift(), TokenType.Symbol));
         } else if (src[0] == '#') {
