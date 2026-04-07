@@ -3,7 +3,6 @@
 import { useCallback } from 'react';
 import {
     useStore,
-    getBezierPath,
     EdgeProps,
     EdgeLabelRenderer,
     BaseEdge,
@@ -30,14 +29,31 @@ function FloatingEdge(props: EdgeProps) {
         targetNode
     );
 
-    const [edgePath, labelX, labelY] = getBezierPath({
-        sourceX: sx,
-        sourceY: sy,
-        sourcePosition: sourcePos,
-        targetPosition: targetPos,
-        targetX: tx,
-        targetY: ty,
-    });
+    const isStartEdge = !label || (typeof label === 'string' && label.length === 0);
+
+    let edgePath: string;
+    let labelX: number;
+    let labelY: number;
+
+    if (isStartEdge) {
+        // Straight arrow for the start indicator
+        edgePath = `M ${sx} ${sy} L ${tx} ${ty}`;
+        labelX = (sx + tx) / 2;
+        labelY = (sy + ty) / 2;
+    } else {
+        // Add curvature offset so edges arc like in textbook diagrams
+        const dx = tx - sx;
+        const dy = ty - sy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const curvatureOffset = Math.max(30, dist * 0.25);
+        // Perpendicular offset for the control point
+        const mx = (sx + tx) / 2 + (-dy / dist) * curvatureOffset;
+        const my = (sy + ty) / 2 + (dx / dist) * curvatureOffset;
+
+        edgePath = `M ${sx} ${sy} Q ${mx} ${my} ${tx} ${ty}`;
+        labelX = (sx + 2 * mx + tx) / 4;
+        labelY = (sy + 2 * my + ty) / 4;
+    }
 
     const isTransitionMoreThanOne = () => {
         if (data.label.length > 1) {
