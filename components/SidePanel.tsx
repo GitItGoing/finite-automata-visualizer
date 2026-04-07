@@ -11,6 +11,7 @@ import { parseAndBuildDFA, validateConstraint } from '../utils/constraint';
 import { useDfaStore } from '../store/dfaStore';
 import { testLog } from '../tests/log';
 import { DFAStoreData } from '../interfaces/store';
+import { NodeInterface, LinkInterface } from '../interfaces/graph';
 import SidePanelItem from './SidePanelItem';
 import { demoManyRegex } from '../constants/demo';
 
@@ -65,7 +66,7 @@ function SidePanel(props: PropsInterface) {
     const [stringChecker, setStringChecker] = useState<boolean | null>(null);
     const [regexError, setRegexError] = useState('');
     const [alphabetInput, setAlphabetInput] = useState(alphabet.join(','));
-    const [inputMode, setInputMode] = useState<'regex' | 'constraint'>('regex');
+    const [inputMode, setInputMode] = useState<'regex' | 'constraint' | 'json'>('regex');
 
     const dropRef = useRef(null);
     const dropBtnRef = useRef(null);
@@ -131,7 +132,9 @@ function SidePanel(props: PropsInterface) {
             return;
         }
         if (selectedApp === 0) {
-            if (inputMode === 'constraint') {
+            if (inputMode === 'json') {
+                generateFromJSON(inputString.trim());
+            } else if (inputMode === 'constraint') {
                 generateFromConstraint(inputString.trim());
             } else {
                 generateDFA(inputString.trim());
@@ -208,17 +211,24 @@ function SidePanel(props: PropsInterface) {
     };
 
     const handleInputChange = (e) => {
-        const input = inputMode === 'constraint' ? e.target.value : e.target.value.toLowerCase();
+        const input = inputMode === 'json' || inputMode === 'constraint'
+            ? e.target.value
+            : e.target.value.toLowerCase();
         if (selectedApp === 0) {
-            const error = inputMode === 'constraint'
-                ? validateConstraint(input)
-                : validateRegex(input);
-            if (error) {
-                setIsInputValid(false);
-                setRegexError(error);
-            } else {
+            if (inputMode === 'json') {
                 setIsInputValid(true);
                 setRegexError('');
+            } else {
+                const error = inputMode === 'constraint'
+                    ? validateConstraint(input)
+                    : validateRegex(input);
+                if (error) {
+                    setIsInputValid(false);
+                    setRegexError(error);
+                } else {
+                    setIsInputValid(true);
+                    setRegexError('');
+                }
             }
         } else if (selectedApp === 1 && !isValidStringInput(input)) {
             setIsInputValid(false);
@@ -288,6 +298,105 @@ function SidePanel(props: PropsInterface) {
         await getInputsFromIdb();
         setSelectedInput(dfaData.id);
         setRegexHeader(constraintStr);
+        setIsFetching(false);
+    };
+
+    const generateFromJSON = async (jsonStr: string) => {
+        let parsed: any;
+        try {
+            parsed = JSON.parse(jsonStr);
+        } catch (e) {
+            setRegexError('Invalid JSON');
+            setIsInputValid(false);
+            return;
+        }
+
+        // Expected format:
+        // {
+        //   "alphabet": ["a", "b"],
+        //   "states": ["q1", "q2", ...],
+        //   "start": "q1",
+        //   "accept": ["q2"],
+        //   "transitions": { "q1": { "a": "q2", "b": "q1" }, ... }
+        // }
+        const { states: stateNames, start, accept, transitions } = parsed;
+        const jsonAlphabet = parsed.alphabet;
+
+        if (!stateNames || !start || !accept || !transitions) {
+            setRegexError('JSON must have: states, start, accept, transitions');
+            setIsInputValid(false);
+            return;
+        }
+
+        if (jsonAlphabet) {
+            setAlphabet(jsonAlphabet);
+            setAlphabetInput(jsonAlphabet.join(','));
+        }
+
+        // Map state names to numeric IDs
+        const nameToId: Record<string, number> = {};
+        const acceptSet = new Set(accept as string[]);
+
+        // Start state gets id 1
+        nameToId[start] = 1;
+        let nextId = 2;
+        (stateNames as string[]).forEach((name) => {
+            if (name === start) return;
+            nameToId[name] = nextId++;
+        });
+
+        const importedNodes: NodeInterface[] = (stateNames as string[]).map((name) => ({
+            id: nameToId[name],
+            values: [nameToId[name]],
+            group: 1,
+            isFinalState: acceptSet.has(name),
+        }));
+
+        const importedLinks: LinkInterface[] = [];
+        const linkMap: Record<string, { source: NodeInterface; target: NodeInterface; symbols: string[] }> = {};
+
+        for (const [srcName, trans] of Object.entries(transitions as Record<string, Record<string, string>>)) {
+            const srcId = nameToId[srcName];
+            const srcNode = importedNodes.find((n) => n.id === srcId);
+            if (!srcNode) continue;
+
+            for (const [sym, tgtName] of Object.entries(trans)) {
+                const tgtId = nameToId[tgtName];
+                const tgtNode = importedNodes.find((n) => n.id === tgtId);
+                if (!tgtNode) continue;
+
+                const key = `${srcId}->${tgtId}`;
+                if (linkMap[key]) {
+                    linkMap[key].symbols.push(sym);
+                } else {
+                    linkMap[key] = { source: srcNode, target: tgtNode, symbols: [sym] };
+                }
+            }
+        }
+
+        for (const entry of Object.values(linkMap)) {
+            importedLinks.push({
+                source: entry.source,
+                target: entry.target,
+                transition: entry.symbols.join(','),
+            });
+        }
+
+        setNodes(importedNodes);
+        setLinks(importedLinks);
+        setInputString('');
+
+        const data = {
+            regex: `JSON (${(stateNames as string[]).length} states)`,
+            nodes: importedNodes,
+            links: importedLinks,
+            alphabet: jsonAlphabet || alphabet,
+        };
+        setIsFetching(true);
+        const dfaData = await addDfaToIdb(data);
+        await getInputsFromIdb();
+        setSelectedInput(dfaData.id);
+        setRegexHeader(`JSON (${(stateNames as string[]).length} states)`);
         setIsFetching(false);
     };
 
@@ -440,7 +549,55 @@ function SidePanel(props: PropsInterface) {
                                 >
                                     Constraint
                                 </button>
+                                <button
+                                    type="button"
+                                    onClick={() => { setInputMode('json'); setInputString(''); setRegexError(''); setIsInputValid(true); }}
+                                    className={`flex-1 py-1 text-xs rounded-md border transition ${
+                                        inputMode === 'json'
+                                            ? 'bg-sky-500 text-white border-sky-500'
+                                            : 'bg-white text-gray-500 border-gray-200 hover:border-sky-400'
+                                    }`}
+                                >
+                                    JSON
+                                </button>
                             </div>
+                            {inputMode === 'json' ? (
+                                <div className="flex flex-col gap-2">
+                                    <textarea
+                                        value={inputString}
+                                        placeholder={'{\n  "alphabet": ["a","b"],\n  "states": ["q1","q2"],\n  "start": "q1",\n  "accept": ["q2"],\n  "transitions": {\n    "q1": {"a":"q2","b":"q1"},\n    "q2": {"a":"q1","b":"q2"}\n  }\n}'}
+                                        className="rounded-md w-full p-2 text-xs border border-gray-200 focus:outline-none focus:border-sky-500 font-mono"
+                                        rows={8}
+                                        onChange={handleInputChange}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={handleSubmit}
+                                        className={`rounded-md p-2 bg-sky-500 text-white hover:bg-sky-600 transition duration-200 text-sm
+                                                ${disableInputButton && 'cursor-no-drop'}`}
+                                        disabled={disableInputButton}
+                                    >
+                                        Import JSON
+                                    </button>
+                                    <label className="text-xs text-gray-400 cursor-pointer hover:text-sky-500 transition text-center">
+                                        or upload a .json file
+                                        <input
+                                            type="file"
+                                            accept=".json"
+                                            className="hidden"
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0];
+                                                if (!file) return;
+                                                const reader = new FileReader();
+                                                reader.onload = (ev) => {
+                                                    setInputString(ev.target?.result as string || '');
+                                                };
+                                                reader.readAsText(file);
+                                            }}
+                                        />
+                                    </label>
+                                </div>
+                            ) : (
                             <form
                                 onSubmit={handleSubmit}
                                 className="flex items-stretch"
@@ -469,6 +626,7 @@ function SidePanel(props: PropsInterface) {
                                     />
                                 </button>
                             </form>
+                            )}
                             {selectedApp === 0 && !isInputValid && (
                                 <p className="text-red-500 text-xs px-2 pt-2">
                                     {regexError}
