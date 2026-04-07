@@ -7,6 +7,7 @@ import { mdiResistorNodes, mdiCheckAll, mdiRocketLaunchOutline } from '@mdi/js';
 
 import Parser from '../classes/Parser';
 import { generateNodesAndLinks } from '../utils/graph';
+import { parseAndBuildDFA, validateConstraint } from '../utils/constraint';
 import { useDfaStore } from '../store/dfaStore';
 import { testLog } from '../tests/log';
 import { DFAStoreData } from '../interfaces/store';
@@ -64,6 +65,7 @@ function SidePanel(props: PropsInterface) {
     const [stringChecker, setStringChecker] = useState<boolean | null>(null);
     const [regexError, setRegexError] = useState('');
     const [alphabetInput, setAlphabetInput] = useState(alphabet.join(','));
+    const [inputMode, setInputMode] = useState<'regex' | 'constraint'>('regex');
 
     const dropRef = useRef(null);
     const dropBtnRef = useRef(null);
@@ -129,7 +131,11 @@ function SidePanel(props: PropsInterface) {
             return;
         }
         if (selectedApp === 0) {
-            generateDFA(inputString.trim());
+            if (inputMode === 'constraint') {
+                generateFromConstraint(inputString.trim());
+            } else {
+                generateDFA(inputString.trim());
+            }
         } else if (selectedApp === 1) {
             setStringChecker(null);
             const stringChecker = isValidRegex(inputString.trim());
@@ -202,10 +208,11 @@ function SidePanel(props: PropsInterface) {
     };
 
     const handleInputChange = (e) => {
-        console.log('heree');
-        const input = e.target.value.toLowerCase();
+        const input = inputMode === 'constraint' ? e.target.value : e.target.value.toLowerCase();
         if (selectedApp === 0) {
-            const error = validateRegex(input);
+            const error = inputMode === 'constraint'
+                ? validateConstraint(input)
+                : validateRegex(input);
             if (error) {
                 setIsInputValid(false);
                 setRegexError(error);
@@ -256,6 +263,31 @@ function SidePanel(props: PropsInterface) {
         await getInputsFromIdb();
         setSelectedInput(dfaData.id);
         setRegexHeader(inputString);
+        setIsFetching(false);
+    };
+
+    const generateFromConstraint = async (constraintStr: string) => {
+        const result = parseAndBuildDFA(constraintStr, alphabet);
+        if ('error' in result) {
+            setRegexError(result.error);
+            setIsInputValid(false);
+            return;
+        }
+        setNodes(result.nodes);
+        setLinks(result.links);
+        setInputString('');
+
+        const data = {
+            regex: constraintStr,
+            nodes: result.nodes,
+            links: result.links,
+            alphabet: alphabet,
+        };
+        setIsFetching(true);
+        const dfaData = await addDfaToIdb(data);
+        await getInputsFromIdb();
+        setSelectedInput(dfaData.id);
+        setRegexHeader(constraintStr);
         setIsFetching(false);
     };
 
@@ -385,6 +417,30 @@ function SidePanel(props: PropsInterface) {
                                     }}
                                 />
                             </div>
+                            <div className="mb-2 flex gap-1">
+                                <button
+                                    type="button"
+                                    onClick={() => { setInputMode('regex'); setInputString(''); setRegexError(''); setIsInputValid(true); }}
+                                    className={`flex-1 py-1 text-xs rounded-md border transition ${
+                                        inputMode === 'regex'
+                                            ? 'bg-sky-500 text-white border-sky-500'
+                                            : 'bg-white text-gray-500 border-gray-200 hover:border-sky-400'
+                                    }`}
+                                >
+                                    Regex
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => { setInputMode('constraint'); setInputString(''); setRegexError(''); setIsInputValid(true); }}
+                                    className={`flex-1 py-1 text-xs rounded-md border transition ${
+                                        inputMode === 'constraint'
+                                            ? 'bg-sky-500 text-white border-sky-500'
+                                            : 'bg-white text-gray-500 border-gray-200 hover:border-sky-400'
+                                    }`}
+                                >
+                                    Constraint
+                                </button>
+                            </div>
                             <form
                                 onSubmit={handleSubmit}
                                 className="flex items-stretch"
@@ -392,7 +448,7 @@ function SidePanel(props: PropsInterface) {
                                 <input
                                     value={inputString}
                                     type="text"
-                                    placeholder={apps[selectedApp].placeholder}
+                                    placeholder={inputMode === 'constraint' ? '!contains(bb) && endsWith(a)' : apps[selectedApp].placeholder}
                                     className="rounded-l-md w-full p-2 border border-gray-200 focus:outline-none focus:border-sky-500"
                                     onChange={handleInputChange}
                                     onKeyDown={(e) => {

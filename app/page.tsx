@@ -16,6 +16,7 @@ import { minimizeDFA } from '../utils/minimize';
 import Icon from '@mdi/react';
 import {
     mdiRocketLaunchOutline,
+    mdiExport,
     mdiCloseCircleOutline,
     mdiCheckCircleOutline,
     mdiSquare,
@@ -208,6 +209,61 @@ export default function Page() {
         setNodes(result.nodes);
         setLinks(result.links);
     }, [nodes, links, pushHistory]);
+
+    const handleExportJSON = useCallback(() => {
+        if (nodes.length === 0) return;
+
+        const stateLabel = (id: number, index: number) => {
+            if (id === -1) return 'dead';
+            return useQNotation ? `q${index + 1}` : `q${index + 1}`;
+        };
+
+        // Build index lookup
+        const indexMap: Record<number, number> = {};
+        nodes.forEach((n, i) => { indexMap[n.id] = i; });
+
+        const result: Record<string, any> = {
+            regex: regexHeader,
+            alphabet: alphabet,
+            states: {},
+        };
+
+        nodes.forEach((node, index) => {
+            const label = stateLabel(node.id, index);
+            const outgoing = links.filter((l) => l.source.id === node.id);
+
+            const transitions: string[] = [];
+            outgoing.forEach((link) => {
+                const targetIdx = indexMap[link.target.id];
+                const targetLabel = stateLabel(link.target.id, targetIdx !== undefined ? targetIdx : -1);
+                const symbols = link.transition.split(',');
+
+                symbols.forEach((sym) => {
+                    if (link.source.id === link.target.id) {
+                        transitions.push(`if ${sym}, self-loops`);
+                    } else {
+                        transitions.push(`if ${sym}, goes to ${targetLabel}`);
+                    }
+                });
+            });
+
+            result.states[label] = {
+                type: node.isFinalState ? 'accepting' : node.id === 1 ? 'start' : node.id === -1 ? 'dead' : 'normal',
+                transitions: transitions,
+            };
+
+            if (node.id === 1) result.states[label].type = node.isFinalState ? 'start, accepting' : 'start';
+        });
+
+        const json = JSON.stringify(result, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `dfa-${regexHeader.replace(/[^a-zA-Z0-9]/g, '_')}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }, [nodes, links, regexHeader, alphabet, useQNotation]);
 
     const disableAnimateInput = regexHeader.length === 0;
 
@@ -652,6 +708,15 @@ export default function Page() {
                             title="Minimize DFA using Table-Filling Method"
                         >
                             minimize
+                        </button>
+                        <button
+                            onClick={handleExportJSON}
+                            disabled={nodes.length === 0}
+                            className="px-2 py-1 rounded-full text-xs font-medium transition duration-200 border bg-gray-50 text-gray-500 border-gray-300 hover:border-sky-400 disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1"
+                            title="Export DFA as JSON"
+                        >
+                            <Icon path={mdiExport} size={0.6} />
+                            export
                         </button>
                         <div className="flex gap-1 ml-2">
                             <button

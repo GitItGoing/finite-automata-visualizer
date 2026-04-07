@@ -9,4 +9,6 @@ export const GUIDELINES = [
     'Use the double ring toggle to show accepting states with a double circle border.',
     'Click an edge to delete it, or tap two nodes to add a new transition.',
     'Use the minimize button to reduce states via the Table-Filling Method.',
+    'Constraint mode: Build DFAs from rules like contains(ab), !contains(b), equals(aa), startsWith(a), endsWith(b).',
+    'Combine constraints with && (and) or || (or). Example: !contains(bb) && endsWith(a).',
 ];
