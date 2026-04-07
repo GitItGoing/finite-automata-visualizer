@@ -216,11 +216,13 @@ function SidePanel(props: PropsInterface) {
     };
 
     const generateDFA = async (inputString: string) => {
+        const alphaKey = alphabet.slice().sort().join(',');
         const existingRegex = inputs.filter((data) => {
-            setInputString('');
-            return data.regex === inputString;
+            const dataAlphaKey = (data.alphabet || ['a', 'b']).slice().sort().join(',');
+            return data.regex === inputString && dataAlphaKey === alphaKey;
         });
         if (existingRegex.length > 0) {
+            setInputString('');
             setSelectedInput(existingRegex[0].id);
             setNodes(existingRegex[0].nodes);
             setLinks(existingRegex[0].links);
@@ -239,6 +241,7 @@ function SidePanel(props: PropsInterface) {
             regex: inputString,
             nodes: nodes,
             links: links,
+            alphabet: alphabet,
         };
         setIsFetching(true);
         const dfaData = await addDfaToIdb(data);
@@ -262,6 +265,10 @@ function SidePanel(props: PropsInterface) {
         setNodes(dfaData?.nodes || []);
         setLinks(dfaData?.links || []);
         setRegexHeader(dfaData ? regex : '');
+        if (dfaData?.alphabet) {
+            setAlphabet(dfaData.alphabet);
+            setAlphabetInput(dfaData.alphabet.join(','));
+        }
     };
 
     const initialize = async () => {
