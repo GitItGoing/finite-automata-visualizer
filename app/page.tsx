@@ -49,6 +49,7 @@ export default function Page() {
     const [showWelcomeModal, setShowWelcomeModal] = useState<boolean>(false);
     const [useQNotation, setUseQNotation] = useState<boolean>(false);
     const [useDoubleRing, setUseDoubleRing] = useState<boolean>(false);
+    const [darkMode, setDarkMode] = useState<boolean>(false);
 
     const disableAnimateInput = regexHeader.length === 0;
 
@@ -429,6 +430,11 @@ export default function Page() {
         <div
             id="main-page"
             className="flex justify-center items-center h-full min-w-screen"
+            style={{
+                filter: darkMode ? 'invert(1) hue-rotate(180deg)' : 'none',
+                backgroundColor: darkMode ? '#fff' : undefined,
+                minHeight: '100dvh',
+            }}
         >
             <div className="flex flex-col items-center w-full h-full">
                 <div className="relative w-full flex justify-center">
@@ -455,6 +461,16 @@ export default function Page() {
                             }`}
                         >
                             double ring
+                        </button>
+                        <button
+                            onClick={() => setDarkMode(!darkMode)}
+                            className={`px-3 py-1 rounded-full text-xs font-medium transition duration-200 border ${
+                                darkMode
+                                    ? 'bg-sky-500 text-white border-sky-500'
+                                    : 'bg-gray-50 text-gray-500 border-gray-300 hover:border-sky-400'
+                            }`}
+                        >
+                            dark mode
                         </button>
                     </div>
                 </div>
