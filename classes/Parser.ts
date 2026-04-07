@@ -13,9 +13,11 @@ export default class Parser {
     public followPos = [] as FollowPosInterface[];
     public tree = {} as AbstractSyntaxTreeInterface;
     public string = null;
+    private alphabet: string[] | undefined;
 
-    constructor(str: string) {
+    constructor(str: string, alphabet?: string[]) {
         this.string = str;
+        this.alphabet = alphabet;
         const augmentedString = str.replaceAll('+', '|');
         this.produceAST(augmentedString);
     }
@@ -150,7 +152,7 @@ export default class Parser {
         let augmentedStr = '('.concat(str);
         augmentedStr = augmentedStr.concat(').#');
 
-        this.tokens = tokenize(augmentedStr);
+        this.tokens = tokenize(augmentedStr, this.alphabet);
 
         while (this.notEOL()) {
             this.tree.body = this.parseExpr();

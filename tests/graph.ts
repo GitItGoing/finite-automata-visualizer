@@ -1,7 +1,7 @@
 import { getNewValues } from '../utils/graph';
 import { FollowPosInterface } from '../interfaces/ast';
 import {
-    getNewNodes,
+    getNewNodesBySymbol,
     isArrayPresent,
     findNodeByTargetValues,
     generateLink,
@@ -87,18 +87,17 @@ const generateNodesAndLinks = (
     while (queue.length > 0) {
         const currentNode = queue.shift();
 
-        const { a, b } = getNewNodes(currentNode, followpos);
+        const symbolMap = getNewNodesBySymbol(currentNode, followpos);
 
-        const potentialNewNodes = [
-            {
-                transition: 'a',
-                list: a,
-            },
-            {
-                transition: 'b',
-                list: b,
-            },
-        ];
+        const potentialNewNodes = [];
+        symbolMap.forEach((positions, sym) => {
+            if (positions.length > 0) {
+                potentialNewNodes.push({
+                    transition: sym,
+                    list: positions,
+                });
+            }
+        });
 
         potentialNewNodes.forEach((potential) => {
             if (isArrayPresent(potential.list, nodes)) {

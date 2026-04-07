@@ -6,10 +6,11 @@ import Link from 'next/link';
 
 interface PropsInterface {
     show: boolean;
+    alphabet?: string[];
 }
 
 function LegendPanel(props: PropsInterface) {
-    const { show } = props;
+    const { show, alphabet = ['a', 'b'] } = props;
     return (
         <div className="legend-panel">
             <CSSTransition
@@ -24,7 +25,7 @@ function LegendPanel(props: PropsInterface) {
                 >
                     <div className="flex flex-col justify-center w-full gap-2 mt-10 px-5">
                         <h2 className="text-gray-500 text-md">
-                            &Sigma; = &#x2774; a, b &#x2775; &nbsp; &epsilon; = e
+                            &Sigma; = &#x2774; {alphabet.join(', ')} &#x2775; &nbsp; &epsilon; = e
                         </h2>
                         {LEGEND.map((content, index) => (
                             <div

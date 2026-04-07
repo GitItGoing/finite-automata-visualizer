@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, Suspense } from 'react';
+import { useState, useRef, useEffect, useCallback, Suspense } from 'react';
 import { NodeInterface, LinkInterface } from '../interfaces/graph';
 import DFA from '../components/DFA';
 import SidePanel from '../components/SidePanel';
@@ -17,6 +17,8 @@ import {
     mdiCloseCircleOutline,
     mdiCheckCircleOutline,
     mdiSquare,
+    mdiUndo,
+    mdiRedo,
 } from '@mdi/js';
 
 const mobileScreen = 640;
@@ -50,6 +52,140 @@ export default function Page() {
     const [useQNotation, setUseQNotation] = useState<boolean>(false);
     const [useDoubleRing, setUseDoubleRing] = useState<boolean>(false);
     const [darkMode, setDarkMode] = useState<boolean>(false);
+    const [alphabet, setAlphabet] = useState<string[]>(['a', 'b']);
+
+    // Undo/Redo history stack
+    interface HistoryEntry {
+        nodes: NodeInterface[];
+        links: LinkInterface[];
+        regex: string;
+    }
+    const undoStack = useRef<HistoryEntry[]>([]);
+    const redoStack = useRef<HistoryEntry[]>([]);
+
+    const pushHistory = useCallback(() => {
+        undoStack.current.push({
+            nodes: JSON.parse(JSON.stringify(nodes)),
+            links: JSON.parse(JSON.stringify(links)),
+            regex: regexHeader,
+        });
+        redoStack.current = [];
+    }, [nodes, links, regexHeader]);
+
+    const handleUndo = useCallback(() => {
+        if (undoStack.current.length === 0) return;
+        redoStack.current.push({
+            nodes: JSON.parse(JSON.stringify(nodes)),
+            links: JSON.parse(JSON.stringify(links)),
+            regex: regexHeader,
+        });
+        const prev = undoStack.current.pop()!;
+        setNodes(prev.nodes);
+        setLinks(prev.links);
+        setRegexHeader(prev.regex);
+    }, [nodes, links, regexHeader]);
+
+    const handleRedo = useCallback(() => {
+        if (redoStack.current.length === 0) return;
+        undoStack.current.push({
+            nodes: JSON.parse(JSON.stringify(nodes)),
+            links: JSON.parse(JSON.stringify(links)),
+            regex: regexHeader,
+        });
+        const next = redoStack.current.pop()!;
+        setNodes(next.nodes);
+        setLinks(next.links);
+        setRegexHeader(next.regex);
+    }, [nodes, links, regexHeader]);
+
+    // Edge deletion dialog state
+    const [deleteDialog, setDeleteDialog] = useState<{
+        sourceId: number;
+        targetId: number;
+        transition: string;
+    } | null>(null);
+
+    // Node selection for adding arrows
+    const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
+
+    // Add arrow dialog state
+    const [addArrowDialog, setAddArrowDialog] = useState<{
+        fromId: number;
+        toId: number;
+    } | null>(null);
+
+    const handleEdgeClick = useCallback((sourceId: number, targetId: number, transition: string) => {
+        if (isAnimating) return;
+        setDeleteDialog({ sourceId, targetId, transition });
+    }, [isAnimating]);
+
+    const handleDeleteEdge = useCallback(() => {
+        if (!deleteDialog) return;
+        pushHistory();
+        const { sourceId, targetId } = deleteDialog;
+        setLinks((prev) =>
+            prev.filter(
+                (link) =>
+                    !(link.source.id === sourceId && link.target.id === targetId)
+            )
+        );
+        setDeleteDialog(null);
+    }, [deleteDialog, pushHistory]);
+
+    const handleNodeTap = useCallback((nodeId: number) => {
+        if (isAnimating) return;
+        if (selectedNodeId === null) {
+            setSelectedNodeId(nodeId);
+        } else {
+            setAddArrowDialog({ fromId: selectedNodeId, toId: nodeId });
+            setSelectedNodeId(null);
+        }
+    }, [isAnimating, selectedNodeId]);
+
+    const handleAddArrow = useCallback((direction: 'forward' | 'reverse' | 'both', symbols: string[]) => {
+        if (!addArrowDialog) return;
+        pushHistory();
+        const { fromId, toId } = addArrowDialog;
+        const transition = symbols.join(',');
+
+        const addLink = (src: number, tgt: number) => {
+            const sourceNode = nodes.find((n) => n.id === src);
+            const targetNode = nodes.find((n) => n.id === tgt);
+            if (!sourceNode || !targetNode) return;
+
+            const existing = links.find(
+                (l) => l.source.id === src && l.target.id === tgt
+            );
+            if (existing) {
+                // Merge transitions, deduplicating
+                const allSyms = existing.transition.split(',').concat(symbols);
+                const unique: Record<string, boolean> = {};
+                allSyms.forEach((s) => { unique[s] = true; });
+                const mergedTransition = Object.keys(unique).join(',');
+                setLinks((prev) =>
+                    prev.map((l) =>
+                        l.source.id === src && l.target.id === tgt
+                            ? { ...l, transition: mergedTransition }
+                            : l
+                    )
+                );
+            } else {
+                setLinks((prev) => [
+                    ...prev,
+                    { source: sourceNode, target: targetNode, transition },
+                ]);
+            }
+        };
+
+        if (direction === 'forward' || direction === 'both') {
+            addLink(fromId, toId);
+        }
+        if (direction === 'reverse' || direction === 'both') {
+            addLink(toId, fromId);
+        }
+
+        setAddArrowDialog(null);
+    }, [addArrowDialog, nodes, links, pushHistory]);
 
     const disableAnimateInput = regexHeader.length === 0;
 
@@ -70,7 +206,7 @@ export default function Page() {
             color: 'yellow',
         },
         {
-            message: 'Alphabhet a, b, and e only are allowed.',
+            message: `Only alphabet symbols (${alphabet.join(', ')}) and e are allowed.`,
             icon: mdiCloseCircleOutline,
             color: 'red',
         },
@@ -85,11 +221,9 @@ export default function Page() {
         stringInput.length === 0 || isValidStringInput(stringInput) === false;
 
     const isValidStringFromSigma = (stringInput: string): boolean => {
-        // Define the regular expression pattern to match only 'a' and 'b'
-        const pattern = /^[abe]*$/;
-
-        // Test the stringInput against the pattern
-        return pattern.test(stringInput);
+        // Allow alphabet symbols and 'e' (epsilon / empty string)
+        const allowed = new Set([...alphabet, 'e']);
+        return stringInput.split('').every((ch) => allowed.has(ch));
     };
 
     const isValidRegex = (inputString: string): boolean => {
@@ -142,11 +276,10 @@ export default function Page() {
             const char = stringInput[i];
             let nextNode = null;
             const tempLinks = links.map((link) => {
+                const transitionSymbols = link.transition.split(',');
                 if (
                     link.source.id === currNode &&
-                    (link.transition === char ||
-                        link.transition === 'a,b' ||
-                        link.transition === 'b,a')
+                    transitionSymbols.includes(char)
                 ) {
                     nextNode = link.target.id;
                     return {
@@ -212,6 +345,24 @@ export default function Page() {
             return;
         }
     }, [animationLastIndex, stringInput, regexHeader]);
+
+    // Keyboard shortcuts for undo/redo
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                handleUndo();
+            } else if ((e.ctrlKey || e.metaKey) && e.key === 'z' && e.shiftKey) {
+                e.preventDefault();
+                handleRedo();
+            } else if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+                e.preventDefault();
+                handleRedo();
+            }
+        };
+        document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [handleUndo, handleRedo]);
 
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
@@ -441,7 +592,7 @@ export default function Page() {
                     <h1 className="absolute top-5 text-sky-500 text-3xl font-bold z-10">
                         {regexHeader}
                     </h1>
-                    <div className="absolute top-14 z-10 flex gap-2">
+                    <div className="absolute top-14 z-10 flex flex-wrap justify-center gap-2 px-2">
                         <button
                             onClick={() => setUseQNotation(!useQNotation)}
                             className={`px-3 py-1 rounded-full text-xs font-medium transition duration-200 border ${
@@ -472,9 +623,36 @@ export default function Page() {
                         >
                             dark mode
                         </button>
+                        <div className="flex gap-1 ml-2">
+                            <button
+                                onClick={handleUndo}
+                                disabled={undoStack.current.length === 0}
+                                className="p-1 rounded-full border bg-gray-50 text-gray-500 border-gray-300 hover:border-sky-400 transition duration-200 disabled:opacity-30 disabled:cursor-not-allowed"
+                                title="Undo (Ctrl+Z)"
+                            >
+                                <Icon path={mdiUndo} size={0.7} />
+                            </button>
+                            <button
+                                onClick={handleRedo}
+                                disabled={redoStack.current.length === 0}
+                                className="p-1 rounded-full border bg-gray-50 text-gray-500 border-gray-300 hover:border-sky-400 transition duration-200 disabled:opacity-30 disabled:cursor-not-allowed"
+                                title="Redo (Ctrl+Shift+Z)"
+                            >
+                                <Icon path={mdiRedo} size={0.7} />
+                            </button>
+                        </div>
                     </div>
                 </div>
-                {nodes && links && <DFA nodes={nodes} links={links} useQNotation={useQNotation} useDoubleRing={useDoubleRing} />}
+                {nodes && links && (
+                    <DFA
+                        nodes={nodes}
+                        links={links}
+                        useQNotation={useQNotation}
+                        useDoubleRing={useDoubleRing}
+                        onEdgeClick={handleEdgeClick}
+                        onNodeClick={handleNodeTap}
+                    />
+                )}
                 <section className="fixed bottom-3 w-full flex justify-center">
                     <div className="flex flex-col gap-2 w-[90%] max-w-[750px]">
                         <div
@@ -606,6 +784,8 @@ export default function Page() {
                             setLinks={setLinks}
                             setRegexHeader={setRegexHeader}
                             demoString={demoString}
+                            alphabet={alphabet}
+                            setAlphabet={setAlphabet}
                         />
                     </Suspense>
                 </section>
@@ -623,7 +803,7 @@ export default function Page() {
                             onClick={() => setShowLegendPanel(true)}
                         ></i>
                     )}
-                    <LegendPanel show={showLegendPanel} />
+                    <LegendPanel show={showLegendPanel} alphabet={alphabet} />
                 </section>
             </div>
             {showWelcomeModal && (
@@ -635,6 +815,156 @@ export default function Page() {
                     }}
                 />
             )}
+
+            {/* Selected node indicator */}
+            {selectedNodeId !== null && (
+                <div className="fixed top-2 left-1/2 -translate-x-1/2 z-50 bg-sky-500 text-white px-4 py-2 rounded-full text-sm flex items-center gap-2">
+                    <span>Selected node {selectedNodeId}. Tap another node to add an arrow.</span>
+                    <button
+                        onClick={() => setSelectedNodeId(null)}
+                        className="ml-1 bg-white/20 rounded-full px-2 py-0.5 text-xs hover:bg-white/30"
+                    >
+                        Cancel
+                    </button>
+                </div>
+            )}
+
+            {/* Delete edge confirmation dialog */}
+            {deleteDialog && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+                    <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm mx-4">
+                        <h3 className="text-lg font-semibold text-gray-800 mb-2">Delete Transition?</h3>
+                        <p className="text-gray-600 text-sm mb-4">
+                            Remove the <strong>{deleteDialog.transition}</strong> transition
+                            from node {deleteDialog.sourceId} to node {deleteDialog.targetId}?
+                        </p>
+                        <div className="flex gap-2 justify-end">
+                            <button
+                                onClick={() => setDeleteDialog(null)}
+                                className="px-4 py-2 rounded-md border border-gray-300 text-gray-600 text-sm hover:bg-gray-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleDeleteEdge}
+                                className="px-4 py-2 rounded-md bg-red-500 text-white text-sm hover:bg-red-600"
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Add arrow dialog */}
+            {addArrowDialog && (
+                <AddArrowDialog
+                    fromId={addArrowDialog.fromId}
+                    toId={addArrowDialog.toId}
+                    alphabet={alphabet}
+                    onConfirm={handleAddArrow}
+                    onCancel={() => setAddArrowDialog(null)}
+                />
+            )}
+        </div>
+    );
+}
+
+function AddArrowDialog({
+    fromId,
+    toId,
+    alphabet,
+    onConfirm,
+    onCancel,
+}: {
+    fromId: number;
+    toId: number;
+    alphabet: string[];
+    onConfirm: (direction: 'forward' | 'reverse' | 'both', symbols: string[]) => void;
+    onCancel: () => void;
+}) {
+    const [direction, setDirection] = useState<'forward' | 'reverse' | 'both'>('forward');
+    const [selectedSymbols, setSelectedSymbols] = useState<Record<string, boolean>>({});
+    const isSelfLoop = fromId === toId;
+
+    const toggleSymbol = (sym: string) => {
+        setSelectedSymbols((prev) => ({ ...prev, [sym]: !prev[sym] }));
+    };
+
+    const chosenSymbols = alphabet.filter((s) => selectedSymbols[s]);
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm mx-4">
+                <h3 className="text-lg font-semibold text-gray-800 mb-2">
+                    {isSelfLoop ? 'Add Self-Loop' : 'Add Transition'}
+                </h3>
+                <p className="text-gray-600 text-sm mb-4">
+                    {isSelfLoop
+                        ? `Add a self-loop on node ${fromId}`
+                        : `Add a transition between node ${fromId} and node ${toId}`}
+                </p>
+
+                {!isSelfLoop && (
+                    <div className="mb-3">
+                        <label className="text-xs text-gray-500 block mb-1">Direction</label>
+                        <div className="flex gap-2">
+                            {(['forward', 'reverse', 'both'] as const).map((dir) => (
+                                <button
+                                    key={dir}
+                                    onClick={() => setDirection(dir)}
+                                    className={`px-3 py-1 rounded-full text-xs border transition ${
+                                        direction === dir
+                                            ? 'bg-sky-500 text-white border-sky-500'
+                                            : 'bg-gray-50 text-gray-500 border-gray-300'
+                                    }`}
+                                >
+                                    {dir === 'forward'
+                                        ? `${fromId} → ${toId}`
+                                        : dir === 'reverse'
+                                          ? `${toId} → ${fromId}`
+                                          : 'Both'}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                <div className="mb-4">
+                    <label className="text-xs text-gray-500 block mb-1">Symbols</label>
+                    <div className="flex gap-2">
+                        {alphabet.map((sym) => (
+                            <button
+                                key={sym}
+                                onClick={() => toggleSymbol(sym)}
+                                className={`px-3 py-1 rounded-full text-sm border transition ${
+                                    selectedSymbols[sym]
+                                        ? 'bg-sky-500 text-white border-sky-500'
+                                        : 'bg-gray-50 text-gray-500 border-gray-300'
+                                }`}
+                            >
+                                {sym}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="flex gap-2 justify-end">
+                    <button
+                        onClick={onCancel}
+                        className="px-4 py-2 rounded-md border border-gray-300 text-gray-600 text-sm hover:bg-gray-50"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={() => onConfirm(isSelfLoop ? 'forward' : direction, chosenSymbols)}
+                        disabled={chosenSymbols.length === 0}
+                        className="px-4 py-2 rounded-md bg-sky-500 text-white text-sm hover:bg-sky-600 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                        Add
+                    </button>
+                </div>
+            </div>
         </div>
     );
 }

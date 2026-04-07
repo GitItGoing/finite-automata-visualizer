@@ -33,6 +33,8 @@ interface PropsInterface {
     setNodes: Function;
     setRegexHeader: Function;
     demoString: string;
+    alphabet: string[];
+    setAlphabet: Function;
 }
 
 function SidePanel(props: PropsInterface) {
@@ -45,6 +47,8 @@ function SidePanel(props: PropsInterface) {
         setRegexHeader,
         demoString,
         isAnimating,
+        alphabet,
+        setAlphabet,
     } = props;
     const searchParams = useSearchParams();
     const paramsRegex = searchParams.get('regex');
@@ -59,6 +63,7 @@ function SidePanel(props: PropsInterface) {
     const [selectedRegex, setSelectedRegex] = useState(null);
     const [stringChecker, setStringChecker] = useState<boolean | null>(null);
     const [regexError, setRegexError] = useState('');
+    const [alphabetInput, setAlphabetInput] = useState(alphabet.join(','));
 
     const dropRef = useRef(null);
     const dropBtnRef = useRef(null);
@@ -133,7 +138,6 @@ function SidePanel(props: PropsInterface) {
     };
 
     const validateRegex = (regex) => {
-        // Check if the input is empty
         if (!regex) {
             return '';
         }
@@ -143,32 +147,29 @@ function SidePanel(props: PropsInterface) {
             return 'Invalid regex pattern: Cannot start with ".", "|", or "*"';
         }
 
-        // Check if the input contains letters other than "a", "b", or "e"
-        if (/[^\Wa-be]/i.test(regex)) {
-            return 'Regex can only contain alphabet letters "a", "b", or "e" (epsilon)';
+        // Build set of allowed characters: alphabet symbols + 'e' (epsilon) + operators
+        const operators = new Set(['.', '*', '|', '(', ')']);
+        const allowedSymbols = new Set([...alphabet, 'e']);
+
+        for (const ch of regex) {
+            if (!operators.has(ch) && !allowedSymbols.has(ch)) {
+                return `Invalid character "${ch}". Allowed symbols: ${alphabet.join(', ')} (and e for epsilon)`;
+            }
         }
 
-        // Check if the input contains characters other than "a", "b", "e", ".", "*", "|", "(", ")"
-        if (/[^abe.*|()]/.test(regex)) {
-            return 'Invalid regex pattern';
+        // Check if the input contains at least one alphabet symbol
+        const hasSymbol = regex.split('').some((ch) => alphabet.includes(ch));
+        if (!hasSymbol) {
+            return `At least one alphabet symbol (${alphabet.join(', ')}) is required`;
         }
 
-        // Check if the input contains at least one "a" or "b"
-        if (!/[ab]/i.test(regex)) {
-            return 'Invalid regex pattern: At least one "a" or "b" is required';
-        }
-
-        try {
-            // Check if the input is a valid regular expression
-            new RegExp(regex);
-        } catch (e) {
-            return 'Invalid regex pattern';
-        }
-
+        // Check for adjacent symbols without concatenation operator
+        const symbolOrEpsilon = new Set([...alphabet, 'e']);
         if (regex.length > 1) {
-            // Additional check for concatenation: two adjacent letters need "."
-            if (/[abe][abe]/.test(regex)) {
-                return 'Must be separated by "." for concatenation';
+            for (let i = 0; i < regex.length - 1; i++) {
+                if (symbolOrEpsilon.has(regex[i]) && symbolOrEpsilon.has(regex[i + 1])) {
+                    return 'Must be separated by "." for concatenation';
+                }
             }
         }
 
@@ -225,7 +226,7 @@ function SidePanel(props: PropsInterface) {
             setLinks(existingRegex[0].links);
             return;
         }
-        const parser = new Parser(inputString);
+        const parser = new Parser(inputString, alphabet);
         const firstPos = parser.firstPos;
         const followPos = parser.followPos;
         const { nodes, links } = generateNodesAndLinks(firstPos, followPos);
@@ -266,7 +267,7 @@ function SidePanel(props: PropsInterface) {
     const initialize = async () => {
         await getInputsFromIdb();
         if (paramsRegex && validateRegex(paramsRegex) === '') {
-            const parser = new Parser(paramsRegex);
+            const parser = new Parser(paramsRegex, alphabet);
             const firstPos = parser.firstPos;
             const followPos = parser.followPos;
             const { nodes, links } = generateNodesAndLinks(firstPos, followPos);
@@ -347,6 +348,28 @@ function SidePanel(props: PropsInterface) {
                     </div>
                     {selectedApp === 0 && (
                         <div className="">
+                            <div className="mb-2">
+                                <label className="text-xs text-gray-400 mb-1 block">
+                                    Alphabet (comma-separated)
+                                </label>
+                                <input
+                                    value={alphabetInput}
+                                    type="text"
+                                    placeholder="a,b"
+                                    className="rounded-md w-full p-2 text-sm border border-gray-200 focus:outline-none focus:border-sky-500"
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setAlphabetInput(val);
+                                        const parsed = val
+                                            .split(',')
+                                            .map((s) => s.trim())
+                                            .filter((s) => s.length === 1);
+                                        if (parsed.length >= 1) {
+                                            setAlphabet(parsed);
+                                        }
+                                    }}
+                                />
+                            </div>
                             <form
                                 onSubmit={handleSubmit}
                                 className="flex items-stretch"

@@ -26,6 +26,8 @@ interface PropsInterface {
     links: LinkInterface[];
     useQNotation?: boolean;
     useDoubleRing?: boolean;
+    onEdgeClick?: (sourceId: number, targetId: number, transition: string) => void;
+    onNodeClick?: (nodeId: number) => void;
 }
 
 function StartPointNode() {
@@ -53,7 +55,7 @@ const edgeTypes: EdgeTypes = {
 };
 
 const DFA = (props: PropsInterface) => {
-    const { nodes, links, useQNotation = false, useDoubleRing = false } = props;
+    const { nodes, links, useQNotation = false, useDoubleRing = false, onEdgeClick, onNodeClick } = props;
 
     let bidirectionals = [];
 
@@ -102,8 +104,14 @@ const DFA = (props: PropsInterface) => {
         }
     };
 
+    const nodeIndexMap = new Map<number, number>();
+    nodes.forEach((node, index) => {
+        nodeIndexMap.set(node.id, index);
+    });
+
     const isBottomNode = (id: number) => {
-        return id % 2 === 0;
+        const index = nodeIndexMap.get(id) ?? 0;
+        return Math.floor(index / 2) % 2 === 1;
     };
 
     const diagramNodes = nodes.map((node, index) => {
@@ -137,8 +145,8 @@ const DFA = (props: PropsInterface) => {
                 isDeadState,
             },
             position: {
-                x: 75 * index + 3.1 ** (index + 1),
-                y: index % 2 === 0 ? 100 : 350,
+                x: (index % 2) * 200,
+                y: Math.floor(index / 2) * 200,
             },
             type: 'dfa',
         } as Node;
@@ -194,6 +202,7 @@ const DFA = (props: PropsInterface) => {
                 isBidirectional,
                 label: link.transition,
             },
+            interactionWidth: 20,
         } as Edge;
     });
 
@@ -233,6 +242,18 @@ const DFA = (props: PropsInterface) => {
         setNodeState(diagramNodes);
     }, [nodes, links, useQNotation, useDoubleRing]);
 
+    const handleEdgeClick = (_event: React.MouseEvent, edge: Edge) => {
+        if (edge.id === '__start_edge__' || !onEdgeClick) return;
+        const sourceId = parseInt(edge.source);
+        const targetId = parseInt(edge.target);
+        onEdgeClick(sourceId, targetId, edge.data?.label || edge.label as string || '');
+    };
+
+    const handleNodeClick = (_event: React.MouseEvent, node: Node) => {
+        if (node.id === '__start__' || !onNodeClick) return;
+        onNodeClick(parseInt(node.id));
+    };
+
     return (
         <div className="h-dvh w-full">
             <ReactFlow
@@ -242,6 +263,8 @@ const DFA = (props: PropsInterface) => {
                 edges={diagramEdges}
                 edgeTypes={edgeTypes}
                 connectionMode={ConnectionMode.Loose}
+                onEdgeClick={handleEdgeClick}
+                onNodeClick={handleNodeClick}
                 fitView
             >
                 <Background />
