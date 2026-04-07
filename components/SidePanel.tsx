@@ -7,9 +7,11 @@ import { mdiResistorNodes, mdiCheckAll, mdiRocketLaunchOutline } from '@mdi/js';
 
 import Parser from '../classes/Parser';
 import { generateNodesAndLinks } from '../utils/graph';
+import { parseAndBuildDFA, validateConstraint } from '../utils/constraint';
 import { useDfaStore } from '../store/dfaStore';
 import { testLog } from '../tests/log';
 import { DFAStoreData } from '../interfaces/store';
+import { NodeInterface, LinkInterface } from '../interfaces/graph';
 import SidePanelItem from './SidePanelItem';
 import { demoManyRegex } from '../constants/demo';
 
@@ -64,6 +66,7 @@ function SidePanel(props: PropsInterface) {
     const [stringChecker, setStringChecker] = useState<boolean | null>(null);
     const [regexError, setRegexError] = useState('');
     const [alphabetInput, setAlphabetInput] = useState(alphabet.join(','));
+    const [inputMode, setInputMode] = useState<'regex' | 'constraint' | 'json'>('regex');
 
     const dropRef = useRef(null);
     const dropBtnRef = useRef(null);
@@ -129,7 +132,13 @@ function SidePanel(props: PropsInterface) {
             return;
         }
         if (selectedApp === 0) {
-            generateDFA(inputString.trim());
+            if (inputMode === 'json') {
+                generateFromJSON(inputString.trim());
+            } else if (inputMode === 'constraint') {
+                generateFromConstraint(inputString.trim());
+            } else {
+                generateDFA(inputString.trim());
+            }
         } else if (selectedApp === 1) {
             setStringChecker(null);
             const stringChecker = isValidRegex(inputString.trim());
@@ -137,14 +146,31 @@ function SidePanel(props: PropsInterface) {
         }
     };
 
+    /** Auto-insert concatenation dots between adjacent tokens where implied.
+     *  e.g. "ab*|ba" → "a.b*|b.a", "(a)(b)" → "(a).(b)", "a(b)" → "a.(b)" */
+    const autoInsertConcat = (regex: string): string => {
+        const symbolOrEpsilon = new Set([...alphabet, 'e']);
+        const isValue = (ch: string) => symbolOrEpsilon.has(ch) || ch === ')' || ch === '*';
+        const isOpener = (ch: string) => symbolOrEpsilon.has(ch) || ch === '(';
+
+        let result = '';
+        for (let i = 0; i < regex.length; i++) {
+            result += regex[i];
+            if (i < regex.length - 1 && isValue(regex[i]) && isOpener(regex[i + 1])) {
+                result += '.';
+            }
+        }
+        return result;
+    };
+
     const validateRegex = (regex) => {
         if (!regex) {
             return '';
         }
 
-        // Check if the input starts with ".", "|", or "*"
-        if (/^[.*|]/.test(regex)) {
-            return 'Invalid regex pattern: Cannot start with ".", "|", or "*"';
+        // Check if the input starts with "|" or "*"
+        if (/^[*|]/.test(regex)) {
+            return 'Invalid regex pattern: Cannot start with "|" or "*"';
         }
 
         // Build set of allowed characters: alphabet symbols + 'e' (epsilon) + operators
@@ -161,16 +187,6 @@ function SidePanel(props: PropsInterface) {
         const hasSymbol = regex.split('').some((ch) => alphabet.includes(ch));
         if (!hasSymbol) {
             return `At least one alphabet symbol (${alphabet.join(', ')}) is required`;
-        }
-
-        // Check for adjacent symbols without concatenation operator
-        const symbolOrEpsilon = new Set([...alphabet, 'e']);
-        if (regex.length > 1) {
-            for (let i = 0; i < regex.length - 1; i++) {
-                if (symbolOrEpsilon.has(regex[i]) && symbolOrEpsilon.has(regex[i + 1])) {
-                    return 'Must be separated by "." for concatenation';
-                }
-            }
         }
 
         return '';
@@ -195,16 +211,24 @@ function SidePanel(props: PropsInterface) {
     };
 
     const handleInputChange = (e) => {
-        console.log('heree');
-        const input = e.target.value.toLowerCase();
+        const input = inputMode === 'json' || inputMode === 'constraint'
+            ? e.target.value
+            : e.target.value.toLowerCase();
         if (selectedApp === 0) {
-            const error = validateRegex(input);
-            if (error) {
-                setIsInputValid(false);
-                setRegexError(error);
-            } else {
+            if (inputMode === 'json') {
                 setIsInputValid(true);
                 setRegexError('');
+            } else {
+                const error = inputMode === 'constraint'
+                    ? validateConstraint(input)
+                    : validateRegex(input);
+                if (error) {
+                    setIsInputValid(false);
+                    setRegexError(error);
+                } else {
+                    setIsInputValid(true);
+                    setRegexError('');
+                }
             }
         } else if (selectedApp === 1 && !isValidStringInput(input)) {
             setIsInputValid(false);
@@ -216,17 +240,20 @@ function SidePanel(props: PropsInterface) {
     };
 
     const generateDFA = async (inputString: string) => {
+        const processedInput = autoInsertConcat(inputString);
+        const alphaKey = alphabet.slice().sort().join(',');
         const existingRegex = inputs.filter((data) => {
-            setInputString('');
-            return data.regex === inputString;
+            const dataAlphaKey = (data.alphabet || ['a', 'b']).slice().sort().join(',');
+            return data.regex === inputString && dataAlphaKey === alphaKey;
         });
         if (existingRegex.length > 0) {
+            setInputString('');
             setSelectedInput(existingRegex[0].id);
             setNodes(existingRegex[0].nodes);
             setLinks(existingRegex[0].links);
             return;
         }
-        const parser = new Parser(inputString, alphabet);
+        const parser = new Parser(processedInput, alphabet);
         const firstPos = parser.firstPos;
         const followPos = parser.followPos;
         const { nodes, links } = generateNodesAndLinks(firstPos, followPos);
@@ -239,12 +266,137 @@ function SidePanel(props: PropsInterface) {
             regex: inputString,
             nodes: nodes,
             links: links,
+            alphabet: alphabet,
         };
         setIsFetching(true);
         const dfaData = await addDfaToIdb(data);
         await getInputsFromIdb();
         setSelectedInput(dfaData.id);
         setRegexHeader(inputString);
+        setIsFetching(false);
+    };
+
+    const generateFromConstraint = async (constraintStr: string) => {
+        const result = parseAndBuildDFA(constraintStr, alphabet);
+        if ('error' in result) {
+            setRegexError(result.error);
+            setIsInputValid(false);
+            return;
+        }
+        setNodes(result.nodes);
+        setLinks(result.links);
+        setInputString('');
+
+        const data = {
+            regex: constraintStr,
+            nodes: result.nodes,
+            links: result.links,
+            alphabet: alphabet,
+        };
+        setIsFetching(true);
+        const dfaData = await addDfaToIdb(data);
+        await getInputsFromIdb();
+        setSelectedInput(dfaData.id);
+        setRegexHeader(constraintStr);
+        setIsFetching(false);
+    };
+
+    const generateFromJSON = async (jsonStr: string) => {
+        let parsed: any;
+        try {
+            parsed = JSON.parse(jsonStr);
+        } catch (e) {
+            setRegexError('Invalid JSON');
+            setIsInputValid(false);
+            return;
+        }
+
+        // Expected format:
+        // {
+        //   "alphabet": ["a", "b"],
+        //   "states": ["q1", "q2", ...],
+        //   "start": "q1",
+        //   "accept": ["q2"],
+        //   "transitions": { "q1": { "a": "q2", "b": "q1" }, ... }
+        // }
+        const { states: stateNames, start, accept, transitions } = parsed;
+        const jsonAlphabet = parsed.alphabet;
+
+        if (!stateNames || !start || !accept || !transitions) {
+            setRegexError('JSON must have: states, start, accept, transitions');
+            setIsInputValid(false);
+            return;
+        }
+
+        if (jsonAlphabet) {
+            setAlphabet(jsonAlphabet);
+            setAlphabetInput(jsonAlphabet.join(','));
+        }
+
+        // Map state names to numeric IDs
+        const nameToId: Record<string, number> = {};
+        const acceptSet = new Set(accept as string[]);
+
+        // Start state gets id 1
+        nameToId[start] = 1;
+        let nextId = 2;
+        (stateNames as string[]).forEach((name) => {
+            if (name === start) return;
+            nameToId[name] = nextId++;
+        });
+
+        const importedNodes: NodeInterface[] = (stateNames as string[]).map((name) => ({
+            id: nameToId[name],
+            values: [nameToId[name]],
+            group: 1,
+            isFinalState: acceptSet.has(name),
+        }));
+
+        const importedLinks: LinkInterface[] = [];
+        const linkMap: Record<string, { source: NodeInterface; target: NodeInterface; symbols: string[] }> = {};
+
+        for (const [srcName, trans] of Object.entries(transitions as Record<string, Record<string, string>>)) {
+            const srcId = nameToId[srcName];
+            const srcNode = importedNodes.find((n) => n.id === srcId);
+            if (!srcNode) continue;
+
+            for (const [sym, tgtName] of Object.entries(trans)) {
+                const tgtId = nameToId[tgtName];
+                const tgtNode = importedNodes.find((n) => n.id === tgtId);
+                if (!tgtNode) continue;
+
+                const key = `${srcId}->${tgtId}`;
+                if (linkMap[key]) {
+                    linkMap[key].symbols.push(sym);
+                } else {
+                    linkMap[key] = { source: srcNode, target: tgtNode, symbols: [sym] };
+                }
+            }
+        }
+
+        for (const entry of Object.values(linkMap)) {
+            importedLinks.push({
+                source: entry.source,
+                target: entry.target,
+                transition: entry.symbols.join(','),
+            });
+        }
+
+        setNodes(importedNodes);
+        setLinks(importedLinks);
+        setInputString('');
+
+        const data = {
+            regex: `JSON (${(stateNames as string[]).length} states)`,
+            nodes: importedNodes,
+            links: importedLinks,
+            alphabet: jsonAlphabet || alphabet,
+        };
+        setIsFetching(true);
+        const dfaData = await addDfaToIdb(data);
+        await getInputsFromIdb();
+        setSelectedInput(dfaData.id);
+        setRegexHeader(`JSON (${(stateNames as string[]).length} states)`);
         setIsFetching(false);
     };
 
@@ -262,12 +414,16 @@ function SidePanel(props: PropsInterface) {
         setNodes(dfaData?.nodes || []);
         setLinks(dfaData?.links || []);
         setRegexHeader(dfaData ? regex : '');
+        if (dfaData?.alphabet) {
+            setAlphabet(dfaData.alphabet);
+            setAlphabetInput(dfaData.alphabet.join(','));
+        }
     };
 
     const initialize = async () => {
         await getInputsFromIdb();
         if (paramsRegex && validateRegex(paramsRegex) === '') {
-            const parser = new Parser(paramsRegex, alphabet);
+            const parser = new Parser(autoInsertConcat(paramsRegex), alphabet);
             const firstPos = parser.firstPos;
             const followPos = parser.followPos;
             const { nodes, links } = generateNodesAndLinks(firstPos, followPos);
@@ -370,6 +526,78 @@ function SidePanel(props: PropsInterface) {
                                     }}
                                 />
                             </div>
+                            <div className="mb-2 flex gap-1">
+                                <button
+                                    type="button"
+                                    onClick={() => { setInputMode('regex'); setInputString(''); setRegexError(''); setIsInputValid(true); }}
+                                    className={`flex-1 py-1 text-xs rounded-md border transition ${
+                                        inputMode === 'regex'
+                                            ? 'bg-sky-500 text-white border-sky-500'
+                                            : 'bg-white text-gray-500 border-gray-200 hover:border-sky-400'
+                                    }`}
+                                >
+                                    Regex
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => { setInputMode('constraint'); setInputString(''); setRegexError(''); setIsInputValid(true); }}
+                                    className={`flex-1 py-1 text-xs rounded-md border transition ${
+                                        inputMode === 'constraint'
+                                            ? 'bg-sky-500 text-white border-sky-500'
+                                            : 'bg-white text-gray-500 border-gray-200 hover:border-sky-400'
+                                    }`}
+                                >
+                                    Constraint
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => { setInputMode('json'); setInputString(''); setRegexError(''); setIsInputValid(true); }}
+                                    className={`flex-1 py-1 text-xs rounded-md border transition ${
+                                        inputMode === 'json'
+                                            ? 'bg-sky-500 text-white border-sky-500'
+                                            : 'bg-white text-gray-500 border-gray-200 hover:border-sky-400'
+                                    }`}
+                                >
+                                    JSON
+                                </button>
+                            </div>
+                            {inputMode === 'json' ? (
+                                <div className="flex flex-col gap-2">
+                                    <textarea
+                                        value={inputString}
+                                        placeholder={'{\n  "alphabet": ["a","b"],\n  "states": ["q1","q2"],\n  "start": "q1",\n  "accept": ["q2"],\n  "transitions": {\n    "q1": {"a":"q2","b":"q1"},\n    "q2": {"a":"q1","b":"q2"}\n  }\n}'}
+                                        className="rounded-md w-full p-2 text-xs border border-gray-200 focus:outline-none focus:border-sky-500 font-mono"
+                                        rows={8}
+                                        onChange={handleInputChange}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={handleSubmit}
+                                        className={`rounded-md p-2 bg-sky-500 text-white hover:bg-sky-600 transition duration-200 text-sm
+                                                ${disableInputButton && 'cursor-no-drop'}`}
+                                        disabled={disableInputButton}
+                                    >
+                                        Import JSON
+                                    </button>
+                                    <label className="text-xs text-gray-400 cursor-pointer hover:text-sky-500 transition text-center">
+                                        or upload a .json file
+                                        <input
+                                            type="file"
+                                            accept=".json"
+                                            className="hidden"
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0];
+                                                if (!file) return;
+                                                const reader = new FileReader();
+                                                reader.onload = (ev) => {
+                                                    setInputString(ev.target?.result as string || '');
+                                                };
+                                                reader.readAsText(file);
+                                            }}
+                                        />
+                                    </label>
+                                </div>
+                            ) : (
                             <form
                                 onSubmit={handleSubmit}
                                 className="flex items-stretch"
@@ -377,7 +605,7 @@ function SidePanel(props: PropsInterface) {
                                 <input
                                     value={inputString}
                                     type="text"
-                                    placeholder={apps[selectedApp].placeholder}
+                                    placeholder={inputMode === 'constraint' ? '!contains(bb) && endsWith(a)' : apps[selectedApp].placeholder}
                                     className="rounded-l-md w-full p-2 border border-gray-200 focus:outline-none focus:border-sky-500"
                                     onChange={handleInputChange}
                                     onKeyDown={(e) => {
@@ -398,6 +626,7 @@ function SidePanel(props: PropsInterface) {
                                     />
                                 </button>
                             </form>
+                            )}
                             {selectedApp === 0 && !isInputValid && (
                                 <p className="text-red-500 text-xs px-2 pt-2">
                                     {regexError}

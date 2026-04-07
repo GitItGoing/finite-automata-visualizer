@@ -11,9 +11,12 @@ import { driver } from 'driver.js';
 import 'driver.js/dist/driver.css';
 import { demoSelectedRegex } from '../constants/demo';
 
+import { minimizeDFA } from '../utils/minimize';
+
 import Icon from '@mdi/react';
 import {
     mdiRocketLaunchOutline,
+    mdiExport,
     mdiCloseCircleOutline,
     mdiCheckCircleOutline,
     mdiSquare,
@@ -129,8 +132,11 @@ export default function Page() {
                     !(link.source.id === sourceId && link.target.id === targetId)
             )
         );
+        if (regexHeader && !regexHeader.endsWith(' (edited)')) {
+            setRegexHeader(regexHeader + ' (edited)');
+        }
         setDeleteDialog(null);
-    }, [deleteDialog, pushHistory]);
+    }, [deleteDialog, pushHistory, regexHeader]);
 
     const handleNodeTap = useCallback((nodeId: number) => {
         if (isAnimating) return;
@@ -184,8 +190,80 @@ export default function Page() {
             addLink(toId, fromId);
         }
 
+        if (regexHeader && !regexHeader.endsWith(' (edited)')) {
+            setRegexHeader(regexHeader + ' (edited)');
+        }
         setAddArrowDialog(null);
-    }, [addArrowDialog, nodes, links, pushHistory]);
+    }, [addArrowDialog, nodes, links, pushHistory, regexHeader]);
+
+    const nodeDisplayName = (id: number): string => {
+        if (id === -1) return 'Dead State';
+        if (id === 1) return useQNotation ? 'q1' : `State ${id} (Start)`;
+        return useQNotation ? `q${nodes.findIndex((n) => n.id === id) + 1}` : `State ${id}`;
+    };
+
+    const handleMinimize = useCallback(() => {
+        if (nodes.length === 0) return;
+        pushHistory();
+        const result = minimizeDFA(nodes, links);
+        setNodes(result.nodes);
+        setLinks(result.links);
+    }, [nodes, links, pushHistory]);
+
+    const handleExportJSON = useCallback(() => {
+        if (nodes.length === 0) return;
+
+        const stateLabel = (id: number, index: number) => {
+            if (id === -1) return 'dead';
+            return useQNotation ? `q${index + 1}` : `q${index + 1}`;
+        };
+
+        // Build index lookup
+        const indexMap: Record<number, number> = {};
+        nodes.forEach((n, i) => { indexMap[n.id] = i; });
+
+        const result: Record<string, any> = {
+            regex: regexHeader,
+            alphabet: alphabet,
+            states: {},
+        };
+
+        nodes.forEach((node, index) => {
+            const label = stateLabel(node.id, index);
+            const outgoing = links.filter((l) => l.source.id === node.id);
+
+            const transitions: string[] = [];
+            outgoing.forEach((link) => {
+                const targetIdx = indexMap[link.target.id];
+                const targetLabel = stateLabel(link.target.id, targetIdx !== undefined ? targetIdx : -1);
+                const symbols = link.transition.split(',');
+
+                symbols.forEach((sym) => {
+                    if (link.source.id === link.target.id) {
+                        transitions.push(`if ${sym}, self-loops`);
+                    } else {
+                        transitions.push(`if ${sym}, goes to ${targetLabel}`);
+                    }
+                });
+            });
+
+            result.states[label] = {
+                type: node.isFinalState ? 'accepting' : node.id === 1 ? 'start' : node.id === -1 ? 'dead' : 'normal',
+                transitions: transitions,
+            };
+
+            if (node.id === 1) result.states[label].type = node.isFinalState ? 'start, accepting' : 'start';
+        });
+
+        const json = JSON.stringify(result, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `dfa-${regexHeader.replace(/[^a-zA-Z0-9]/g, '_')}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }, [nodes, links, regexHeader, alphabet, useQNotation]);
 
     const disableAnimateInput = regexHeader.length === 0;
 
@@ -623,6 +701,23 @@ export default function Page() {
                         >
                             dark mode
                         </button>
+                        <button
+                            onClick={handleMinimize}
+                            disabled={nodes.length === 0}
+                            className="px-3 py-1 rounded-full text-xs font-medium transition duration-200 border bg-gray-50 text-gray-500 border-gray-300 hover:border-sky-400 disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="Minimize DFA using Table-Filling Method"
+                        >
+                            minimize
+                        </button>
+                        <button
+                            onClick={handleExportJSON}
+                            disabled={nodes.length === 0}
+                            className="px-2 py-1 rounded-full text-xs font-medium transition duration-200 border bg-gray-50 text-gray-500 border-gray-300 hover:border-sky-400 disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1"
+                            title="Export DFA as JSON"
+                        >
+                            <Icon path={mdiExport} size={0.6} />
+                            export
+                        </button>
                         <div className="flex gap-1 ml-2">
                             <button
                                 onClick={handleUndo}
@@ -819,7 +914,7 @@ export default function Page() {
             {/* Selected node indicator */}
             {selectedNodeId !== null && (
                 <div className="fixed top-2 left-1/2 -translate-x-1/2 z-50 bg-sky-500 text-white px-4 py-2 rounded-full text-sm flex items-center gap-2">
-                    <span>Selected node {selectedNodeId}. Tap another node to add an arrow.</span>
+                    <span>Selected {nodeDisplayName(selectedNodeId)}. Tap another node to add an arrow.</span>
                     <button
                         onClick={() => setSelectedNodeId(null)}
                         className="ml-1 bg-white/20 rounded-full px-2 py-0.5 text-xs hover:bg-white/30"
@@ -836,7 +931,7 @@ export default function Page() {
                         <h3 className="text-lg font-semibold text-gray-800 mb-2">Delete Transition?</h3>
                         <p className="text-gray-600 text-sm mb-4">
                             Remove the <strong>{deleteDialog.transition}</strong> transition
-                            from node {deleteDialog.sourceId} to node {deleteDialog.targetId}?
+                            from <strong>{nodeDisplayName(deleteDialog.sourceId)}</strong> to <strong>{nodeDisplayName(deleteDialog.targetId)}</strong>?
                         </p>
                         <div className="flex gap-2 justify-end">
                             <button
@@ -864,6 +959,7 @@ export default function Page() {
                     alphabet={alphabet}
                     onConfirm={handleAddArrow}
                     onCancel={() => setAddArrowDialog(null)}
+                    nodeDisplayName={nodeDisplayName}
                 />
             )}
         </div>
@@ -876,16 +972,21 @@ function AddArrowDialog({
     alphabet,
     onConfirm,
     onCancel,
+    nodeDisplayName,
 }: {
     fromId: number;
     toId: number;
     alphabet: string[];
     onConfirm: (direction: 'forward' | 'reverse' | 'both', symbols: string[]) => void;
     onCancel: () => void;
+    nodeDisplayName: (id: number) => string;
 }) {
     const [direction, setDirection] = useState<'forward' | 'reverse' | 'both'>('forward');
     const [selectedSymbols, setSelectedSymbols] = useState<Record<string, boolean>>({});
     const isSelfLoop = fromId === toId;
+
+    const fromName = nodeDisplayName(fromId);
+    const toName = nodeDisplayName(toId);
 
     const toggleSymbol = (sym: string) => {
         setSelectedSymbols((prev) => ({ ...prev, [sym]: !prev[sym] }));
@@ -901,8 +1002,8 @@ function AddArrowDialog({
                 </h3>
                 <p className="text-gray-600 text-sm mb-4">
                     {isSelfLoop
-                        ? `Add a self-loop on node ${fromId}`
-                        : `Add a transition between node ${fromId} and node ${toId}`}
+                        ? `Add a self-loop on ${fromName}`
+                        : `Add a transition between ${fromName} and ${toName}`}
                 </p>
 
                 {!isSelfLoop && (
@@ -920,9 +1021,9 @@ function AddArrowDialog({
                                     }`}
                                 >
                                     {dir === 'forward'
-                                        ? `${fromId} → ${toId}`
+                                        ? `${fromName} → ${toName}`
                                         : dir === 'reverse'
-                                          ? `${toId} → ${fromId}`
+                                          ? `${toName} → ${fromName}`
                                           : 'Both'}
                                 </button>
                             ))}

@@ -6,6 +6,7 @@ export interface DFAStoreData {
     nodes: NodeInterface[];
     links: LinkInterface[];
     regex: string;
+    alphabet?: string[];
 }
 
 export interface DFAStoreState {

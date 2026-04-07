@@ -196,7 +196,11 @@ const DFA = (props: PropsInterface) => {
             targetHandle,
             label: link.transition,
             type: edgeType,
-            markerEnd: { type: MarkerType.ArrowClosed },
+            markerEnd: {
+                type: MarkerType.ArrowClosed,
+                width: 25,
+                height: 25,
+            },
             data: {
                 active,
                 isBidirectional,
@@ -229,7 +233,7 @@ const DFA = (props: PropsInterface) => {
             target: '1',
             sourceHandle: 'startSource',
             type: 'floating',
-            markerEnd: { type: MarkerType.ArrowClosed },
+            markerEnd: { type: MarkerType.ArrowClosed, width: 25, height: 25 },
             data: { active: false, label: '' },
         };
         diagramEdges.unshift(startEdge);

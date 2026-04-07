@@ -1,12 +1,44 @@
 import React, { useState } from 'react';
 import { CSSTransition } from 'react-transition-group';
 import { LEGEND } from '../constants/legend';
-import { GUIDELINES } from '../constants/guidelines';
 import Link from 'next/link';
 
 interface PropsInterface {
     show: boolean;
     alphabet?: string[];
+}
+
+function CollapsibleSection({
+    title,
+    children,
+    defaultOpen = false,
+}: {
+    title: string;
+    children: React.ReactNode;
+    defaultOpen?: boolean;
+}) {
+    const [open, setOpen] = useState(defaultOpen);
+    return (
+        <div className="border-b border-gray-200 last:border-b-0">
+            <button
+                onClick={() => setOpen(!open)}
+                className="w-full flex items-center justify-between py-2 text-sky-500 text-sm font-medium hover:text-sky-600 transition"
+            >
+                <span>{title}</span>
+                <span
+                    className="transition-transform duration-200"
+                    style={{ transform: open ? 'rotate(90deg)' : 'rotate(0deg)' }}
+                >
+                    &#9654;
+                </span>
+            </button>
+            {open && (
+                <div className="pb-3 text-gray-500 text-xs leading-relaxed flex flex-col gap-1.5">
+                    {children}
+                </div>
+            )}
+        </div>
+    );
 }
 
 function LegendPanel(props: PropsInterface) {
@@ -21,10 +53,11 @@ function LegendPanel(props: PropsInterface) {
             >
                 <div
                     id="info-panel"
-                    className="flex flex-col overflow-y-auto justify-evenly gap-5 absolute top-0 right-0 py-2 px-3 rounded-md w-[20rem] h-full bg-gray-50 z-10"
+                    className="flex flex-col overflow-y-auto gap-3 absolute top-0 right-0 py-2 px-3 rounded-md w-[20rem] h-full bg-gray-50 z-10"
                 >
-                    <div className="flex flex-col justify-center w-full gap-2 mt-10 px-5">
-                        <h2 className="text-gray-500 text-md">
+                    {/* Header */}
+                    <div className="flex flex-col justify-center w-full gap-2 mt-10 px-4">
+                        <h2 className="text-gray-500 text-sm">
                             &Sigma; = &#x2774; {alphabet.join(', ')} &#x2775; &nbsp; &epsilon; = e
                         </h2>
                         {LEGEND.map((content, index) => (
@@ -44,21 +77,69 @@ function LegendPanel(props: PropsInterface) {
                         ))}
                     </div>
 
-                    <div className="grow flex flex-col items-start pb-2 justify-start px-5">
-                        <h1 className="text-sky-500 text-md">Guidelines:</h1>
-                        <div className="mt-[1rem] flex flex-col items-start justify-center gap-2">
-                            {GUIDELINES.map((guides, index) => (
-                                <div className="flex gap-2 text-gray-500 text-sm">
-                                    <p>{index + 1}.</p>
-                                    <p>{guides}</p>
-                                </div>
-                            ))}
-                        </div>
+                    {/* Collapsible sections */}
+                    <div className="grow flex flex-col px-4">
+                        <CollapsibleSection title="Regex" defaultOpen={true}>
+                            <p>Concatenation is automatic: type <code className="bg-gray-200 px-1 rounded">ab</code> and it is read as <code className="bg-gray-200 px-1 rounded">a.b</code>.</p>
+                            <p>Union: <code className="bg-gray-200 px-1 rounded">a|b</code> means either a or b.</p>
+                            <p>Kleene Star: <code className="bg-gray-200 px-1 rounded">a*</code> means zero or more a's.</p>
+                            <p>Epsilon: Use <code className="bg-gray-200 px-1 rounded">e</code> for the empty string.</p>
+                            <p>Example: <code className="bg-gray-200 px-1 rounded">ab*|ba</code></p>
+                        </CollapsibleSection>
+
+                        <CollapsibleSection title="Constraint Language">
+                            <p>Build DFAs from natural rules instead of regex.</p>
+                            <p><code className="bg-gray-200 px-1 rounded">contains(ab)</code> — strings containing "ab"</p>
+                            <p><code className="bg-gray-200 px-1 rounded">!contains(bb)</code> — no consecutive b's</p>
+                            <p><code className="bg-gray-200 px-1 rounded">equals(aba)</code> — only the string "aba"</p>
+                            <p><code className="bg-gray-200 px-1 rounded">startsWith(a)</code> — starts with a</p>
+                            <p><code className="bg-gray-200 px-1 rounded">endsWith(b)</code> — ends with b</p>
+                            <p>Combine with <code className="bg-gray-200 px-1 rounded">&&</code> (and) or <code className="bg-gray-200 px-1 rounded">||</code> (or).</p>
+                            <p>Example: <code className="bg-gray-200 px-1 rounded">!contains(bb) && endsWith(a)</code></p>
+                        </CollapsibleSection>
+
+                        <CollapsibleSection title="JSON Import / Export">
+                            <p>Import a DFA by pasting JSON or uploading a <code className="bg-gray-200 px-1 rounded">.json</code> file.</p>
+                            <p>Format:</p>
+                            <pre className="bg-gray-200 rounded p-2 text-[0.65rem] overflow-x-auto whitespace-pre">{`{
+  "alphabet": ["a","b"],
+  "states": ["q1","q2"],
+  "start": "q1",
+  "accept": ["q2"],
+  "transitions": {
+    "q1": {"a":"q2","b":"q1"},
+    "q2": {"a":"q1","b":"q2"}
+  }
+}`}</pre>
+                            <p>Export the current DFA as JSON using the <strong>export</strong> button in the toolbar.</p>
+                        </CollapsibleSection>
+
+                        <CollapsibleSection title="Editing & Tools">
+                            <p><strong>Click an edge</strong> to delete a transition.</p>
+                            <p><strong>Tap two nodes</strong> to add a new transition (or tap one twice for a self-loop).</p>
+                            <p><strong>Minimize</strong> reduces states using the Table-Filling Method.</p>
+                            <p><strong>Undo / Redo</strong> with Ctrl+Z / Ctrl+Shift+Z or toolbar buttons.</p>
+                        </CollapsibleSection>
+
+                        <CollapsibleSection title="Display Settings">
+                            <p><strong>q-notation</strong> — show states as q1, q2, q3.</p>
+                            <p><strong>Double ring</strong> — accepting states use double circle border.</p>
+                            <p><strong>Dark mode</strong> — inverts all colors.</p>
+                            <p><strong>Custom alphabet</strong> — change in the side panel (e.g., 0,1 or x,y).</p>
+                        </CollapsibleSection>
+
+                        <CollapsibleSection title="String Checking">
+                            <p>Enter a string in the bottom bar and press <strong>Animate</strong>.</p>
+                            <p>Only alphabet symbols and <code className="bg-gray-200 px-1 rounded">e</code> (empty string) are accepted.</p>
+                            <p>Adjust speed with the 1X–5X button.</p>
+                        </CollapsibleSection>
                     </div>
-                    <div className="text-black px-5 pb-4">
+
+                    {/* Footer */}
+                    <div className="text-black px-4 pb-4">
                         <Link
                             href="https://github.com/maxellmilay/finite-automata-visualizer"
-                            className="relative flex  gap-5 mb-2"
+                            className="relative flex gap-5 mb-2"
                             target="_blank"
                         >
                             <i

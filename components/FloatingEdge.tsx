@@ -98,20 +98,23 @@ function FloatingEdge(props: EdgeProps) {
 
     return (
         <>
-            <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} />
+            <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} style={{ strokeWidth: 1.5 }} />
             <EdgeLabelRenderer>
                 <p
                     style={{
                         position: 'absolute',
                         transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
-                        backgroundColor: '#8f94a1',
+                        backgroundColor: '#4a5568',
+                        color: '#fff',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
                         padding: isTransitionMoreThanOne()
-                            ? '5px 6px'
-                            : '1px 9px',
-                        borderRadius: '50%',
+                            ? '4px 8px'
+                            : '2px 10px',
+                        borderRadius: '12px',
                         boxShadow: active
                             ? '0 0 150px 7px #fff, 0 0 10px 5px #0ff, 0 0 25px 12px #0ff'
-                            : 'none',
+                            : '0 1px 3px rgba(0,0,0,0.2)',
                     }}
                     className="nodrag nopan"
                 >

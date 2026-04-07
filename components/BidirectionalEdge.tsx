@@ -75,18 +75,21 @@ export default function BiDirectionalEdge({
 
     return (
         <>
-            <BaseEdge path={path} markerEnd={markerEnd} />
+            <BaseEdge path={path} markerEnd={markerEnd} style={{ strokeWidth: 1.5 }} />
             <EdgeLabelRenderer>
                 <p
                     style={{
                         position: 'absolute',
                         transform: `translate(-50%, -50%) translate(${(sourceX + targetX) / 2}px,${(sourceY + targetY + calculateOffset()) / 2}px)`,
-                        backgroundColor: '#8f94a1',
-                        padding: '1px 9px',
-                        borderRadius: '50%',
+                        backgroundColor: '#4a5568',
+                        color: '#fff',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        padding: '2px 10px',
+                        borderRadius: '12px',
                         boxShadow: active
                             ? '0 0 150px 7px #fff, 0 0 10px 5px #0ff, 0 0 25px 12px #0ff'
-                            : 'none',
+                            : '0 1px 3px rgba(0,0,0,0.2)',
                     }}
                     className="nodrag nopan"
                 >
