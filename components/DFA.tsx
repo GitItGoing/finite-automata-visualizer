@@ -10,6 +10,8 @@ import ReactFlow, {
     ConnectionMode,
     EdgeTypes,
     NodeTypes,
+    Handle,
+    Position,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { NodeInterface, LinkInterface } from '../interfaces/graph';
@@ -26,8 +28,22 @@ interface PropsInterface {
     useDoubleRing?: boolean;
 }
 
+function StartPointNode() {
+    return (
+        <div style={{ width: 1, height: 1 }}>
+            <Handle
+                id="startSource"
+                type="source"
+                position={Position.Right}
+                style={{ background: 'transparent', border: 'none' }}
+            />
+        </div>
+    );
+}
+
 const nodeTypes: NodeTypes = {
     dfa: DFANode,
+    startPoint: StartPointNode,
 };
 
 const edgeTypes: EdgeTypes = {
@@ -115,7 +131,7 @@ const DFA = (props: PropsInterface) => {
                 isBidirectional,
                 useQNotation,
                 useDoubleRing,
-                qIndex: index,
+                qIndex: index + 1,
                 isFinalState,
                 isStartState,
                 isDeadState,
@@ -180,6 +196,35 @@ const DFA = (props: PropsInterface) => {
             },
         } as Edge;
     });
+
+    // Add invisible start point node and arrow to the start state
+    const startNode = nodes.find((n) => n.id === 1);
+    const startNodeDiagram = diagramNodes.find((n) => n.id === '1');
+    if (startNodeDiagram) {
+        const startPointNode: Node = {
+            id: '__start__',
+            data: {},
+            position: {
+                x: startNodeDiagram.position.x - 60,
+                y: startNodeDiagram.position.y + 37,
+            },
+            type: 'startPoint',
+            draggable: false,
+            selectable: false,
+        };
+        diagramNodes.unshift(startPointNode);
+
+        const startEdge: Edge = {
+            id: '__start_edge__',
+            source: '__start__',
+            target: '1',
+            sourceHandle: 'startSource',
+            type: 'floating',
+            markerEnd: { type: MarkerType.ArrowClosed },
+            data: { active: false, label: '' },
+        };
+        diagramEdges.unshift(startEdge);
+    }
 
     const [nodeState, setNodeState, onNodesChange] =
         useNodesState(diagramNodes);
