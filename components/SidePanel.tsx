@@ -137,14 +137,31 @@ function SidePanel(props: PropsInterface) {
         }
     };
 
+    /** Auto-insert concatenation dots between adjacent tokens where implied.
+     *  e.g. "ab*|ba" → "a.b*|b.a", "(a)(b)" → "(a).(b)", "a(b)" → "a.(b)" */
+    const autoInsertConcat = (regex: string): string => {
+        const symbolOrEpsilon = new Set([...alphabet, 'e']);
+        const isValue = (ch: string) => symbolOrEpsilon.has(ch) || ch === ')' || ch === '*';
+        const isOpener = (ch: string) => symbolOrEpsilon.has(ch) || ch === '(';
+
+        let result = '';
+        for (let i = 0; i < regex.length; i++) {
+            result += regex[i];
+            if (i < regex.length - 1 && isValue(regex[i]) && isOpener(regex[i + 1])) {
+                result += '.';
+            }
+        }
+        return result;
+    };
+
     const validateRegex = (regex) => {
         if (!regex) {
             return '';
         }
 
-        // Check if the input starts with ".", "|", or "*"
-        if (/^[.*|]/.test(regex)) {
-            return 'Invalid regex pattern: Cannot start with ".", "|", or "*"';
+        // Check if the input starts with "|" or "*"
+        if (/^[*|]/.test(regex)) {
+            return 'Invalid regex pattern: Cannot start with "|" or "*"';
         }
 
         // Build set of allowed characters: alphabet symbols + 'e' (epsilon) + operators
@@ -161,16 +178,6 @@ function SidePanel(props: PropsInterface) {
         const hasSymbol = regex.split('').some((ch) => alphabet.includes(ch));
         if (!hasSymbol) {
             return `At least one alphabet symbol (${alphabet.join(', ')}) is required`;
-        }
-
-        // Check for adjacent symbols without concatenation operator
-        const symbolOrEpsilon = new Set([...alphabet, 'e']);
-        if (regex.length > 1) {
-            for (let i = 0; i < regex.length - 1; i++) {
-                if (symbolOrEpsilon.has(regex[i]) && symbolOrEpsilon.has(regex[i + 1])) {
-                    return 'Must be separated by "." for concatenation';
-                }
-            }
         }
 
         return '';
@@ -216,6 +223,7 @@ function SidePanel(props: PropsInterface) {
     };
 
     const generateDFA = async (inputString: string) => {
+        const processedInput = autoInsertConcat(inputString);
         const alphaKey = alphabet.slice().sort().join(',');
         const existingRegex = inputs.filter((data) => {
             const dataAlphaKey = (data.alphabet || ['a', 'b']).slice().sort().join(',');
@@ -228,7 +236,7 @@ function SidePanel(props: PropsInterface) {
             setLinks(existingRegex[0].links);
             return;
         }
-        const parser = new Parser(inputString, alphabet);
+        const parser = new Parser(processedInput, alphabet);
         const firstPos = parser.firstPos;
         const followPos = parser.followPos;
         const { nodes, links } = generateNodesAndLinks(firstPos, followPos);
@@ -274,7 +282,7 @@ function SidePanel(props: PropsInterface) {
     const initialize = async () => {
         await getInputsFromIdb();
         if (paramsRegex && validateRegex(paramsRegex) === '') {
-            const parser = new Parser(paramsRegex, alphabet);
+            const parser = new Parser(autoInsertConcat(paramsRegex), alphabet);
             const firstPos = parser.firstPos;
             const followPos = parser.followPos;
             const { nodes, links } = generateNodesAndLinks(firstPos, followPos);

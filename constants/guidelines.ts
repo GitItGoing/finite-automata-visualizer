@@ -1,6 +1,5 @@
 export const GUIDELINES = [
-    'Important: You must explicitly use . for concatenation (e.g., type a.b not ab).',
-    'Concatenation: Represented by . (e.g., a.b means ab).',
+    'Concatenation is automatic: type ab and it is read as a.b. You can also use . explicitly.',
     'Union (Or): Represented by | (e.g., a|b means either a or b).',
     'Kleene Star: Represented by * (e.g., a* means zero or more occurrences of a).',
     'Epsilon: Use e in regex to represent the empty string (e.g., a.e.b is equivalent to a.b).',
