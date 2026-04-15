@@ -20,7 +20,7 @@ import FloatingEdge from './FloatingEdge';
 import DFANode from './DFANode';
 import BiDirectionalEdge from './BidirectionalEdge';
 import { StateTypes } from '../constants/state';
-import { getTransitionColor } from '../utils/edgeColors';
+import { getEdgeColor } from '../utils/edgeColors';
 
 interface PropsInterface {
     nodes: NodeInterface[];
@@ -164,7 +164,7 @@ const DFA = (props: PropsInterface) => {
         } as Node;
     });
 
-    const diagramEdges = links.map((link) => {
+    const diagramEdges = links.map((link, edgeIndex) => {
         const targetNodeId = link.target.id;
         const sourceNodeId = link.source.id;
 
@@ -201,7 +201,7 @@ const DFA = (props: PropsInterface) => {
               : null;
 
         const edgeColor = colorEdges
-            ? getTransitionColor(link.transition, alphabet)
+            ? getEdgeColor(edgeIndex)
             : '#4a5568';
 
         return {

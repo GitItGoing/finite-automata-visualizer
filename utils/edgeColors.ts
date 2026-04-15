@@ -1,6 +1,6 @@
 /**
- * Returns a consistent color for a given transition symbol.
- * Multi-symbol transitions (e.g. "a,b") use the color of the first symbol.
+ * Returns a consistent color for a given edge index.
+ * Each edge gets a unique color from the palette (cycling for large graphs).
  */
 const COLOR_PALETTE = [
     '#3b82f6', // blue
@@ -13,12 +13,18 @@ const COLOR_PALETTE = [
     '#f97316', // orange
     '#6366f1', // indigo
     '#84cc16', // lime
+    '#06b6d4', // cyan
+    '#a855f7', // purple
+    '#eab308', // yellow
+    '#22c55e', // green
+    '#d946ef', // fuchsia
+    '#0ea5e9', // sky
+    '#dc2626', // red-600
+    '#9333ea', // purple-600
+    '#059669', // emerald-600
+    '#db2777', // pink-600
 ];
 
-export function getTransitionColor(transition: string, alphabet: string[]): string {
-    // Use first symbol in a comma-separated list
-    const firstSym = transition.split(',')[0];
-    const idx = alphabet.indexOf(firstSym);
-    if (idx === -1) return '#4a5568'; // fallback gray-slate
-    return COLOR_PALETTE[idx % COLOR_PALETTE.length];
+export function getEdgeColor(edgeIndex: number): string {
+    return COLOR_PALETTE[edgeIndex % COLOR_PALETTE.length];
 }
