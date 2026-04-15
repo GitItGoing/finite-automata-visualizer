@@ -20,12 +20,15 @@ import FloatingEdge from './FloatingEdge';
 import DFANode from './DFANode';
 import BiDirectionalEdge from './BidirectionalEdge';
 import { StateTypes } from '../constants/state';
+import { getTransitionColor } from '../utils/edgeColors';
 
 interface PropsInterface {
     nodes: NodeInterface[];
     links: LinkInterface[];
     useQNotation?: boolean;
     useDoubleRing?: boolean;
+    colorEdges?: boolean;
+    alphabet?: string[];
     onEdgeClick?: (sourceId: number, targetId: number, transition: string) => void;
     onNodeClick?: (nodeId: number) => void;
 }
@@ -55,7 +58,16 @@ const edgeTypes: EdgeTypes = {
 };
 
 const DFA = (props: PropsInterface) => {
-    const { nodes, links, useQNotation = false, useDoubleRing = false, onEdgeClick, onNodeClick } = props;
+    const {
+        nodes,
+        links,
+        useQNotation = false,
+        useDoubleRing = false,
+        colorEdges = true,
+        alphabet = ['a', 'b'],
+        onEdgeClick,
+        onNodeClick,
+    } = props;
 
     let bidirectionals = [];
 
@@ -188,6 +200,10 @@ const DFA = (props: PropsInterface) => {
                   : 'bidirectionalTopTarget'
               : null;
 
+        const edgeColor = colorEdges
+            ? getTransitionColor(link.transition, alphabet)
+            : '#4a5568';
+
         return {
             id: edgeId,
             source: sourceNodeId.toString(),
@@ -200,11 +216,14 @@ const DFA = (props: PropsInterface) => {
                 type: MarkerType.ArrowClosed,
                 width: 25,
                 height: 25,
+                color: edgeColor,
             },
+            style: { stroke: edgeColor },
             data: {
                 active,
                 isBidirectional,
                 label: link.transition,
+                color: edgeColor,
             },
             interactionWidth: 20,
         } as Edge;

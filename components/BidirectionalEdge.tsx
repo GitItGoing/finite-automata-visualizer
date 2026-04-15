@@ -34,8 +34,10 @@ export default function BiDirectionalEdge({
     markerEnd,
     label,
     data,
+    style,
 }: EdgeProps) {
     const active = data?.active || false;
+    const color = (style as any)?.stroke || data?.color || '#4a5568';
 
     const edgePathParams = {
         sourceX,
@@ -66,13 +68,13 @@ export default function BiDirectionalEdge({
 
     return (
         <>
-            <BaseEdge path={path} markerEnd={markerEnd} style={{ strokeWidth: 1.5 }} />
+            <BaseEdge path={path} markerEnd={markerEnd} style={{ strokeWidth: 1.5, stroke: color }} />
             <EdgeLabelRenderer>
                 <p
                     style={{
                         position: 'absolute',
                         transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
-                        backgroundColor: '#4a5568',
+                        backgroundColor: color,
                         color: '#fff',
                         fontSize: '0.8rem',
                         fontWeight: 600,

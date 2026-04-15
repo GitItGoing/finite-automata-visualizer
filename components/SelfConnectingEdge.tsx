@@ -7,9 +7,10 @@ export default function SelfConnecting(props: EdgeProps) {
         return <FloatingEdge {...props} />;
     }
 
-    const { sourceX, sourceY, targetX, targetY, id, markerEnd, label, data } =
+    const { sourceX, sourceY, targetX, targetY, id, markerEnd, label, data, style } =
         props;
     const active = data?.active || false;
+    const color = (style as any)?.stroke || data?.color || '#4a5568';
     const radiusX = (sourceX - targetX) * 0.6;
     const radiusY = 50;
     const edgePath = `M ${sourceX} ${sourceY} A ${radiusX} ${radiusY} 0 1 0 ${targetX} ${targetY}`;
@@ -24,13 +25,13 @@ export default function SelfConnecting(props: EdgeProps) {
 
     return (
         <>
-            <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} style={{ strokeWidth: 1.5 }} />
+            <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} style={{ strokeWidth: 1.5, stroke: color }} />
             <EdgeLabelRenderer>
                 <p
                     style={{
                         position: 'absolute',
                         transform: `translate(-50%, -50%) translate(${(sourceX + targetX) / 2}px,${sourceY + 75}px)`,
-                        backgroundColor: '#4a5568',
+                        backgroundColor: color,
                         color: '#fff',
                         fontSize: '0.8rem',
                         fontWeight: 600,

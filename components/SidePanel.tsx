@@ -487,6 +487,24 @@ function SidePanel(props: PropsInterface) {
         initialize();
     }, []);
 
+    // Re-validate the input whenever the alphabet changes, so a stale error
+    // from a previous alphabet state doesn't keep the submit button disabled.
+    useEffect(() => {
+        if (!inputString || inputMode === 'json') return;
+        const error =
+            inputMode === 'constraint'
+                ? validateConstraint(inputString)
+                : validateRegex(inputString);
+        if (error) {
+            setIsInputValid(false);
+            setRegexError(error);
+        } else {
+            setIsInputValid(true);
+            setRegexError('');
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [alphabet]);
+
     useEffect(() => {
         const handleClick = (e) => {
             if (

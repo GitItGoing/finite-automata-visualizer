@@ -10,8 +10,9 @@ import {
 import { getEdgeParams } from '../utils/reactflow';
 
 function FloatingEdge(props: EdgeProps) {
-    const { id, source, target, markerEnd, label, data } = props;
+    const { id, source, target, markerEnd, label, data, style } = props;
     const active = data?.active || false;
+    const color = (style as any)?.stroke || data?.color || '#4a5568';
 
     const sourceNode = useStore(
         useCallback((store) => store.nodeInternals.get(source), [source])
@@ -100,13 +101,13 @@ function FloatingEdge(props: EdgeProps) {
 
     return (
         <>
-            <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} style={{ strokeWidth: 1.5 }} />
+            <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} style={{ strokeWidth: 1.5, stroke: color }} />
             <EdgeLabelRenderer>
                 <p
                     style={{
                         position: 'absolute',
                         transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
-                        backgroundColor: '#4a5568',
+                        backgroundColor: color,
                         color: '#fff',
                         fontSize: '0.8rem',
                         fontWeight: 600,
