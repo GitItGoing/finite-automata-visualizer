@@ -90,6 +90,7 @@ function LegendPanel(props: PropsInterface) {
 
                         <CollapsibleSection title="Regex Examples">
                             <p className="italic">Tap an example to try it:</p>
+                            <p className="text-gray-400 text-[0.65rem] mt-2 mb-1 font-semibold">BASIC PATTERNS</p>
                             <div className="flex flex-col gap-2">
                                 {[
                                     { desc: 'Contains at least three 1s', re: '(0|1)*1(0|1)*1(0|1)*1(0|1)*' },
@@ -108,6 +109,48 @@ function LegendPanel(props: PropsInterface) {
                                 ].map((ex, i) => (
                                     <button
                                         key={i}
+                                        onClick={() => {
+                                            const input = document.querySelector(
+                                                '#side-panel input[type="text"]'
+                                            ) as HTMLInputElement | null;
+                                            if (input) {
+                                                const setter = Object.getOwnPropertyDescriptor(
+                                                    window.HTMLInputElement.prototype,
+                                                    'value'
+                                                )?.set;
+                                                setter?.call(input, ex.re);
+                                                input.dispatchEvent(new Event('input', { bubbles: true }));
+                                                input.focus();
+                                            }
+                                        }}
+                                        className="text-left bg-white hover:bg-sky-50 border border-gray-200 rounded p-2 transition"
+                                    >
+                                        <div className="text-gray-600 text-xs">{ex.desc}</div>
+                                        <code className="text-sky-600 text-xs block mt-0.5">{ex.re}</code>
+                                    </button>
+                                ))}
+                            </div>
+                            <p className="text-gray-400 text-[0.65rem] mt-4 mb-1 font-semibold">SIPSER HW #2 (BINARY ALPHABET)</p>
+                            <div className="flex flex-col gap-2">
+                                {[
+                                    { desc: '1a. The language {0}', re: '0' },
+                                    { desc: '1b. Strings ending in 00', re: '(0|1)*00' },
+                                    { desc: '2a. Starts with 1 and ends with 0, or has ≥3 ones', re: '1(0|1)*0|(0|1)*1(0|1)*1(0|1)*1(0|1)*' },
+                                    { desc: '2a (part 1). Starts with 1 and ends with 0', re: '1(0|1)*0' },
+                                    { desc: '2a (part 2). Contains at least three 1s', re: '(0|1)*1(0|1)*1(0|1)*1(0|1)*' },
+                                    { desc: '2b (part 1). Contains substring 1010', re: '(0|1)*1010(0|1)*' },
+                                    { desc: '3-ish. No consecutive 1s', re: '(0|10)*(e|1)' },
+                                    { desc: '5 (n=3). Strings of 1s whose length is a multiple of 3', re: '(111)*' },
+                                    { desc: '5 (n=2). Even number of 1s only', re: '(11)*' },
+                                    { desc: '7a-ish. Odd number of a\'s before b, then any', re: 'a(a(a|b))*b(a|b)*' },
+                                    { desc: 'Ends with 010', re: '(0|1)*010' },
+                                    { desc: 'Starts with 00 or ends with 11', re: '00(0|1)*|(0|1)*11' },
+                                    { desc: 'Contains 000 and ends with 1', re: '(0|1)*000(0|1)*1' },
+                                    { desc: 'Even length (any binary string)', re: '((0|1)(0|1))*' },
+                                    { desc: 'Odd length (any binary string)', re: '(0|1)((0|1)(0|1))*' },
+                                ].map((ex, i) => (
+                                    <button
+                                        key={`sipser-${i}`}
                                         onClick={() => {
                                             const input = document.querySelector(
                                                 '#side-panel input[type="text"]'
