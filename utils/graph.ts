@@ -6,6 +6,7 @@ export const findNodeByTargetValues = (
     nodes: NodeInterface[]
 ): NodeInterface => {
     for (const node of nodes) {
+        if (node.values.length !== target.length) continue;
         const nodeSet = new Set(node.values);
         if (target.every((val) => nodeSet.has(val))) {
             return node;
