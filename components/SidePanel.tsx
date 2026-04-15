@@ -146,10 +146,22 @@ function SidePanel(props: PropsInterface) {
         }
     };
 
+    /** Extract alphabet automatically from a regex by finding all non-operator, non-epsilon characters. */
+    const inferAlphabet = (regex: string): string[] => {
+        const operators = new Set(['.', '*', '|', '(', ')', ' ']);
+        const seen: Record<string, boolean> = {};
+        for (const ch of regex) {
+            // Skip operators and the epsilon symbol
+            if (operators.has(ch) || ch === 'e') continue;
+            seen[ch] = true;
+        }
+        return Object.keys(seen).sort();
+    };
+
     /** Auto-insert concatenation dots between adjacent tokens where implied.
      *  e.g. "ab*|ba" → "a.b*|b.a", "(a)(b)" → "(a).(b)", "a(b)" → "a.(b)" */
-    const autoInsertConcat = (regex: string): string => {
-        const symbolOrEpsilon = new Set([...alphabet, 'e']);
+    const autoInsertConcat = (regex: string, effectiveAlphabet: string[]): string => {
+        const symbolOrEpsilon = new Set([...effectiveAlphabet, 'e']);
         const isValue = (ch: string) => symbolOrEpsilon.has(ch) || ch === ')' || ch === '*';
         const isOpener = (ch: string) => symbolOrEpsilon.has(ch) || ch === '(';
 
@@ -173,20 +185,30 @@ function SidePanel(props: PropsInterface) {
             return 'Invalid regex pattern: Cannot start with "|" or "*"';
         }
 
-        // Build set of allowed characters: alphabet symbols + 'e' (epsilon) + operators
+        // Since alphabet is auto-inferred, allow any single-char symbol.
+        // Reject only whitespace and obvious invalid characters here.
         const operators = new Set(['.', '*', '|', '(', ')']);
-        const allowedSymbols = new Set([...alphabet, 'e']);
-
         for (const ch of regex) {
-            if (!operators.has(ch) && !allowedSymbols.has(ch)) {
-                return `Invalid character "${ch}". Allowed symbols: ${alphabet.join(', ')} (and e for epsilon)`;
+            if (ch === ' ') continue;
+            if (operators.has(ch)) continue;
+            if (!/[a-zA-Z0-9]/.test(ch)) {
+                return `Invalid character "${ch}". Use letters, digits, or operators (., |, *, (, )).`;
             }
         }
 
-        // Check if the input contains at least one alphabet symbol
-        const hasSymbol = regex.split('').some((ch) => alphabet.includes(ch));
-        if (!hasSymbol) {
-            return `At least one alphabet symbol (${alphabet.join(', ')}) is required`;
+        // Check for balanced parentheses
+        let depth = 0;
+        for (const ch of regex) {
+            if (ch === '(') depth++;
+            else if (ch === ')') depth--;
+            if (depth < 0) return 'Unbalanced parentheses';
+        }
+        if (depth !== 0) return 'Unbalanced parentheses';
+
+        // Must have at least one non-epsilon symbol
+        const inferredCheck = inferAlphabet(regex);
+        if (inferredCheck.length === 0) {
+            return 'Regex must contain at least one alphabet symbol';
         }
 
         return '';
@@ -240,8 +262,17 @@ function SidePanel(props: PropsInterface) {
     };
 
     const generateDFA = async (inputString: string) => {
-        const processedInput = autoInsertConcat(inputString);
-        const alphaKey = alphabet.slice().sort().join(',');
+        // Auto-infer alphabet from the regex itself
+        const inferredAlphabet = inferAlphabet(inputString);
+        const effectiveAlphabet = inferredAlphabet.length > 0 ? inferredAlphabet : alphabet;
+        // Propagate inferred alphabet to the rest of the app
+        if (inferredAlphabet.length > 0) {
+            setAlphabet(inferredAlphabet);
+            setAlphabetInput(inferredAlphabet.join(','));
+        }
+
+        const processedInput = autoInsertConcat(inputString, effectiveAlphabet);
+        const alphaKey = effectiveAlphabet.slice().sort().join(',');
         const existingRegex = inputs.filter((data) => {
             const dataAlphaKey = (data.alphabet || ['a', 'b']).slice().sort().join(',');
             return data.regex === inputString && dataAlphaKey === alphaKey;
@@ -253,7 +284,7 @@ function SidePanel(props: PropsInterface) {
             setLinks(existingRegex[0].links);
             return;
         }
-        const parser = new Parser(processedInput, alphabet);
+        const parser = new Parser(processedInput, effectiveAlphabet);
         const firstPos = parser.firstPos;
         const followPos = parser.followPos;
         const { nodes, links } = generateNodesAndLinks(firstPos, followPos);
@@ -266,7 +297,7 @@ function SidePanel(props: PropsInterface) {
             regex: inputString,
             nodes: nodes,
             links: links,
-            alphabet: alphabet,
+            alphabet: effectiveAlphabet,
         };
         setIsFetching(true);
         const dfaData = await addDfaToIdb(data);
@@ -423,7 +454,13 @@ function SidePanel(props: PropsInterface) {
     const initialize = async () => {
         await getInputsFromIdb();
         if (paramsRegex && validateRegex(paramsRegex) === '') {
-            const parser = new Parser(autoInsertConcat(paramsRegex), alphabet);
+            const inferredFromParams = inferAlphabet(paramsRegex);
+            const paramsAlphabet = inferredFromParams.length > 0 ? inferredFromParams : alphabet;
+            if (inferredFromParams.length > 0) {
+                setAlphabet(inferredFromParams);
+                setAlphabetInput(inferredFromParams.join(','));
+            }
+            const parser = new Parser(autoInsertConcat(paramsRegex, paramsAlphabet), paramsAlphabet);
             const firstPos = parser.firstPos;
             const followPos = parser.followPos;
             const { nodes, links } = generateNodesAndLinks(firstPos, followPos);
@@ -506,7 +543,7 @@ function SidePanel(props: PropsInterface) {
                         <div className="">
                             <div className="mb-2">
                                 <label className="text-xs text-gray-400 mb-1 block">
-                                    Alphabet (comma-separated)
+                                    Alphabet {inputMode === 'regex' ? '(auto-inferred)' : '(comma-separated)'}
                                 </label>
                                 <input
                                     value={alphabetInput}
