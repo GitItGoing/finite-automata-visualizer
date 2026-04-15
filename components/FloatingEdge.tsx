@@ -56,11 +56,13 @@ function FloatingEdge(props: EdgeProps) {
         labelX = (sx + tx) / 2;
         labelY = (sy + ty) / 2;
     } else {
-        // Add curvature offset so edges arc like in textbook diagrams
+        // Add curvature offset so edges arc like in textbook diagrams.
+        // Minimum curvature is enforced so arrows always visibly bend,
+        // regardless of whether nodes are aligned horizontally/vertically.
         const dx = tx - sx;
         const dy = ty - sy;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        const curvatureOffset = Math.max(30, dist * 0.25);
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        const curvatureOffset = Math.max(50, dist * 0.3);
 
         // Perpendicular direction vectors (two options: left or right of the edge)
         const perpX = -dy / dist;
