@@ -285,17 +285,44 @@ function LegendPanel(props: PropsInterface) {
                         </CollapsibleSection>
 
                         <CollapsibleSection title="JSON Import / Export">
-                            <p>Import a DFA or NFA by pasting JSON or uploading a <code className="bg-gray-200 px-1 rounded">.json</code> file. Export the current automaton via the <strong>export</strong> button in the toolbar.</p>
+                            <p>Import a DFA or NFA by pasting JSON into the JSON tab or uploading a <code className="bg-gray-200 px-1 rounded">.json</code> file. Export the current automaton via the <strong>export</strong> button in the toolbar.</p>
 
-                            <p className="mt-2"><strong>Top-level fields:</strong></p>
-                            <p>• <code className="bg-gray-200 px-1 rounded">type</code> — <code className="bg-gray-200 px-1 rounded">"NFA"</code> for an NFA. Omit (or any other value) for a DFA.</p>
-                            <p>• <code className="bg-gray-200 px-1 rounded">alphabet</code> — array of symbols, e.g. <code className="bg-gray-200 px-1 rounded">["0","1"]</code></p>
-                            <p>• <code className="bg-gray-200 px-1 rounded">states</code> — array of state names, e.g. <code className="bg-gray-200 px-1 rounded">["q1","q2"]</code></p>
-                            <p>• <code className="bg-gray-200 px-1 rounded">start</code> — name of the start state</p>
-                            <p>• <code className="bg-gray-200 px-1 rounded">accept</code> — array of accepting state names</p>
-                            <p>• <code className="bg-gray-200 px-1 rounded">transitions</code> — object mapping each source state to a symbol→target map</p>
+                            <p className="mt-3"><strong>Plain-English definition of the JSON format:</strong></p>
 
-                            <p className="mt-2"><strong>DFA transitions</strong> (single target per symbol):</p>
+                            <p className="mt-2">1. <strong>The type</strong> is either <code className="bg-gray-200 px-1 rounded">"DFA"</code> or <code className="bg-gray-200 px-1 rounded">"NFA"</code>. Set the <code className="bg-gray-200 px-1 rounded">type</code> field to <code className="bg-gray-200 px-1 rounded">"NFA"</code> for an NFA. Omitting the field (or any other value) means DFA.</p>
+
+                            <p className="mt-2">2. <strong>The alphabet</strong> is an array of single-character strings, one per symbol. Example: <code className="bg-gray-200 px-1 rounded">"alphabet": ["0","1"]</code> or <code className="bg-gray-200 px-1 rounded">["a","b"]</code>.</p>
+
+                            <p className="mt-2">3. <strong>The states</strong> are an array of state names you invent. They can be anything, but by convention people use <code className="bg-gray-200 px-1 rounded">q0</code>, <code className="bg-gray-200 px-1 rounded">q1</code>, etc. Example: <code className="bg-gray-200 px-1 rounded">"states": ["q1","q2","q3"]</code>.</p>
+
+                            <p className="mt-2">4. <strong>The start state</strong> is declared by naming one of your states in the <code className="bg-gray-200 px-1 rounded">start</code> field. Example: <code className="bg-gray-200 px-1 rounded">"start": "q1"</code>. Only one start state is allowed, and it must appear in the <code className="bg-gray-200 px-1 rounded">states</code> array.</p>
+
+                            <p className="mt-2">5. <strong>The accepting states</strong> are declared as an array in the <code className="bg-gray-200 px-1 rounded">accept</code> field. Example: <code className="bg-gray-200 px-1 rounded">"accept": ["q2","q3"]</code>. You can have zero, one, or many accepting states. A state can be both the start state AND accepting.</p>
+
+                            <p className="mt-2">6. <strong>A transition</strong> describes where a state goes when it reads a symbol. Transitions live in the <code className="bg-gray-200 px-1 rounded">transitions</code> field, grouped by source state:</p>
+                            <p className="ml-3">For <strong>DFA</strong>: each symbol maps to exactly one target state (single string).</p>
+                            <pre className="bg-gray-200 rounded p-2 text-[0.65rem] overflow-x-auto whitespace-pre ml-3">{`"q1": { "a": "q2", "b": "q1" }
+// Reads: "From q1, on 'a' go to q2.
+//         From q1, on 'b' go to q1."`}</pre>
+                            <p className="ml-3 mt-2">For <strong>NFA</strong>: each symbol maps to an <em>array</em> of possible target states (nondeterminism).</p>
+                            <pre className="bg-gray-200 rounded p-2 text-[0.65rem] overflow-x-auto whitespace-pre ml-3">{`"q0": { "a": ["q0","q1"], "ε": ["q2"] }
+// Reads: "From q0, on 'a' go to q0 OR q1.
+//         From q0, on ε go to q2."`}</pre>
+
+                            <p className="mt-2">7. <strong>A self-loop</strong> is just a transition where the target is the same state as the source.</p>
+                            <pre className="bg-gray-200 rounded p-2 text-[0.65rem] overflow-x-auto whitespace-pre">{`// DFA: q1 loops on 'a'
+"q1": { "a": "q1", "b": "q2" }
+
+// NFA: q1 loops on 'a' (target in array)
+"q1": { "a": ["q1"], "b": ["q2"] }`}</pre>
+
+                            <p className="mt-2">8. <strong>An epsilon transition</strong> (NFA only) is a move that consumes no input. Use the symbol <code className="bg-gray-200 px-1 rounded">"ε"</code> (the Greek letter) or the word <code className="bg-gray-200 px-1 rounded">"epsilon"</code> as the transition key.</p>
+
+                            <p className="mt-2">9. <strong>A dead state</strong> is not a special kind of state — it's just any state that isn't accepting and whose only transitions loop back to itself. You don't need to declare it as "dead" anywhere.</p>
+
+                            <p className="mt-2">10. <strong>Missing transitions</strong> in a DFA are treated as going to an implicit dead state. You don't need to list every symbol for every state if you just want the DFA to reject that input.</p>
+
+                            <p className="mt-3"><strong>Full DFA example:</strong></p>
                             <pre className="bg-gray-200 rounded p-2 text-[0.65rem] overflow-x-auto whitespace-pre">{`{
   "alphabet": ["a","b"],
   "states": ["q1","q2"],
@@ -307,7 +334,7 @@ function LegendPanel(props: PropsInterface) {
   }
 }`}</pre>
 
-                            <p className="mt-2"><strong>NFA transitions</strong> (array of targets, supports ε):</p>
+                            <p className="mt-2"><strong>Full NFA example with ε:</strong></p>
                             <pre className="bg-gray-200 rounded p-2 text-[0.65rem] overflow-x-auto whitespace-pre">{`{
   "type": "NFA",
   "alphabet": ["a","b"],
@@ -320,21 +347,7 @@ function LegendPanel(props: PropsInterface) {
   }
 }`}</pre>
 
-                            <p className="mt-2"><strong>Self-loops:</strong> to make state <code className="bg-gray-200 px-1 rounded">q1</code> loop on symbol <code className="bg-gray-200 px-1 rounded">a</code>, set the target to itself:</p>
-                            <pre className="bg-gray-200 rounded p-2 text-[0.65rem] overflow-x-auto whitespace-pre">{`// DFA self-loop:
-"q1": {"a":"q1"}
-
-// NFA self-loop (same idea, just in an array):
-"q1": {"a":["q1"]}`}</pre>
-
-                            <p className="mt-2"><strong>Special conventions:</strong></p>
-                            <p>• <strong>Start state</strong> must be in the <code className="bg-gray-200 px-1 rounded">states</code> array; its name is listed in <code className="bg-gray-200 px-1 rounded">start</code>.</p>
-                            <p>• <strong>Accepting state</strong> — just list its name in <code className="bg-gray-200 px-1 rounded">accept</code>. A state can be both start and accepting.</p>
-                            <p>• <strong>Dead state</strong> — optional. Any state name works; it's "dead" by virtue of not being in <code className="bg-gray-200 px-1 rounded">accept</code> and only self-looping.</p>
-                            <p>• <strong>Epsilon transition</strong> (NFA only) — use the symbol <code className="bg-gray-200 px-1 rounded">"ε"</code> or <code className="bg-gray-200 px-1 rounded">"epsilon"</code>.</p>
-                            <p>• Missing transitions (DFA) send the input to an implicit dead state.</p>
-
-                            <p className="mt-2 text-gray-400 text-[0.65rem]">When exporting, a <code className="bg-gray-200 px-1 rounded">description</code> field is included with human-readable transitions like <em>"if a, goes to q2"</em> / <em>"if b, self-loops"</em>. This is ignored on import.</p>
+                            <p className="mt-3 text-gray-400 text-[0.65rem]">On export, a <code className="bg-gray-200 px-1 rounded">description</code> field is added with plain-English lines like <em>"if a, goes to q2"</em> or <em>"if b, self-loops"</em>. This is human-readable only; the importer ignores it.</p>
                         </CollapsibleSection>
 
                         <CollapsibleSection title="JSON Examples">
