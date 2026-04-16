@@ -351,25 +351,27 @@ function LegendPanel(props: PropsInterface) {
                         </CollapsibleSection>
 
                         <CollapsibleSection title="JSON Examples">
-                            <p className="italic">Tap an example to load its JSON into the JSON tab.</p>
+                            <p className="italic">Tap an example to load its JSON into the JSON tab. These mirror the Regex Examples and NFA Examples but build the JSON directly so you can inspect/edit it.</p>
 
-                            <p className="text-gray-400 text-[0.65rem] mt-2 mb-1 font-semibold">DFA JSON (from REGEX examples)</p>
+                            <p className="text-gray-400 text-[0.65rem] mt-2 mb-1 font-semibold">DFA JSON — BASIC PATTERNS</p>
                             <div className="flex flex-col gap-2">
                                 {[
                                     { desc: 'Contains at least three 1s', re: '(0|1)*1(0|1)*1(0|1)*1(0|1)*' },
-                                    { desc: 'Ends with 00', re: '(0|1)*00' },
-                                    { desc: 'Starts with 1 and ends with 0', re: '1(0|1)*0' },
+                                    { desc: 'Length ≥ 3 and third symbol is 0', re: '(0|1)(0|1)0(0|1)*' },
+                                    { desc: 'Ends with b', re: '(a|b)*b' },
+                                    { desc: 'Starts with a', re: 'a(a|b)*' },
                                     { desc: 'Contains substring "ab"', re: '(a|b)*ab(a|b)*' },
                                     { desc: 'Exactly 3 symbols long', re: '(a|b)(a|b)(a|b)' },
-                                    { desc: 'Even length (any binary string)', re: '((0|1)(0|1))*' },
-                                    { desc: 'HW 1a. {0}', re: '0' },
-                                    { desc: 'HW 3. Even 0s, odd 1s, no "01"', re: '1(11)*(00)*' },
-                                    { desc: 'HW 6. Equal count of 01 and 10', re: 'e|0|1|0(0|1)*0|1(0|1)*1' },
-                                    { desc: 'HW 7a. Strings starting with a', re: 'a(a|b)*' },
-                                    { desc: 'HW 7b. Empty or starts with a', re: 'e|a(a|b)*' },
+                                    { desc: 'Zero or more a\'s then a b', re: 'a*b' },
+                                    { desc: 'Even number of 0s', re: '(1|01*0)*' },
+                                    { desc: 'Empty string or a single a (uses e)', re: 'e|a' },
+                                    { desc: 'Optional a, then b (a? via e|a)', re: '(e|a)b' },
+                                    { desc: 'Optional prefix "ab", then c*', re: '(ab|e)c*' },
+                                    { desc: 'At most one a, any number of b\'s', re: 'b*(a|e)b*' },
+                                    { desc: 'Optional leading zero, then 1s', re: '(0|e)1*' },
                                 ].map((ex, i) => (
                                     <button
-                                        key={`dfa-json-${i}`}
+                                        key={`dfa-json-basic-${i}`}
                                         onClick={() => {
                                             const jsonBtn = document.getElementById('json-mode-button');
                                             if (jsonBtn) jsonBtn.click();
@@ -397,7 +399,60 @@ function LegendPanel(props: PropsInterface) {
                                 ))}
                             </div>
 
-                            <p className="text-gray-400 text-[0.65rem] mt-4 mb-1 font-semibold">NFA JSON (from NFA examples)</p>
+                            <p className="text-gray-400 text-[0.65rem] mt-4 mb-1 font-semibold">DFA JSON — SIPSER HW #2</p>
+                            <div className="flex flex-col gap-2">
+                                {[
+                                    { desc: '1a. The language {0}', re: '0' },
+                                    { desc: '1b. Strings ending in 00', re: '(0|1)*00' },
+                                    { desc: '2a. Starts with 1 & ends with 0, OR ≥3 ones', re: '1(0|1)*0|(0|1)*1(0|1)*1(0|1)*1(0|1)*' },
+                                    { desc: '2a (part 1). Starts with 1 and ends with 0', re: '1(0|1)*0' },
+                                    { desc: '2a (part 2). Contains at least three 1s', re: '(0|1)*1(0|1)*1(0|1)*1(0|1)*' },
+                                    { desc: '2b (part 1). Contains substring 1010', re: '(0|1)*1010(0|1)*' },
+                                    { desc: '2b (part 2). Does not contain substring 110', re: '(0|10)*1*' },
+                                    { desc: '3. Even 0s, odd 1s, no "01" substring', re: '1(11)*(00)*' },
+                                    { desc: '4. No pair of 1s separated by odd # symbols', re: '0*|0*10*|(00)*1(00)*10*|0(00)*1(00)*10*' },
+                                    { desc: '5 (n=2). Only 1s, even length', re: '(11)*' },
+                                    { desc: '5 (n=3). Only 1s, length multiple of 3', re: '(111)*' },
+                                    { desc: '6. Equal count of "01" and "10" substrings', re: 'e|0|1|0(0|1)*0|1(0|1)*1' },
+                                    { desc: '7a. Strings starting with a (NFA→DFA)', re: 'a(a|b)*' },
+                                    { desc: '7b. Empty or starts with a (NFA→DFA)', re: 'e|a(a|b)*' },
+                                    { desc: 'Bonus. No consecutive 1s (no "11")', re: '(0|10)*(e|1)' },
+                                    { desc: 'Ends with 010', re: '(0|1)*010' },
+                                    { desc: 'Starts with 00 or ends with 11', re: '00(0|1)*|(0|1)*11' },
+                                    { desc: 'Contains 000 and ends with 1', re: '(0|1)*000(0|1)*1' },
+                                    { desc: 'Even length (any binary string)', re: '((0|1)(0|1))*' },
+                                    { desc: 'Odd length (any binary string)', re: '(0|1)((0|1)(0|1))*' },
+                                ].map((ex, i) => (
+                                    <button
+                                        key={`dfa-json-hw-${i}`}
+                                        onClick={() => {
+                                            const jsonBtn = document.getElementById('json-mode-button');
+                                            if (jsonBtn) jsonBtn.click();
+                                            setTimeout(() => {
+                                                const textarea = document.querySelector(
+                                                    '#json-input'
+                                                ) as HTMLTextAreaElement | null;
+                                                if (textarea) {
+                                                    const setter = Object.getOwnPropertyDescriptor(
+                                                        window.HTMLTextAreaElement.prototype,
+                                                        'value'
+                                                    )?.set;
+                                                    const json = regexToDFAJSON(ex.re);
+                                                    setter?.call(textarea, json);
+                                                    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                                                    textarea.focus();
+                                                }
+                                            }, 50);
+                                        }}
+                                        className="text-left bg-white hover:bg-sky-50 border border-gray-200 rounded p-2 transition"
+                                    >
+                                        <div className="text-gray-600 text-xs">{ex.desc}</div>
+                                        <code className="text-sky-600 text-xs block mt-0.5">{ex.re}</code>
+                                    </button>
+                                ))}
+                            </div>
+
+                            <p className="text-gray-400 text-[0.65rem] mt-4 mb-1 font-semibold">NFA JSON — CLASSIC THOMPSON</p>
                             <div className="flex flex-col gap-2">
                                 {[
                                     { desc: 'Simple union a|b', re: 'a|b' },
@@ -405,14 +460,48 @@ function LegendPanel(props: PropsInterface) {
                                     { desc: 'Optional a then b', re: '(e|a)b' },
                                     { desc: 'Concatenation chain', re: 'abc' },
                                     { desc: 'Nested kleene (ab)*', re: '(ab)*' },
-                                    { desc: 'HW 1a. {0}', re: '0' },
-                                    { desc: 'HW 1b. Ends with 00', re: '(0|1)*00' },
-                                    { desc: 'HW 2a. Starts 1 ends 0, OR ≥3 ones', re: '1(0|1)*0|(0|1)*1(0|1)*1(0|1)*1(0|1)*' },
-                                    { desc: 'HW 7a. Starts with a', re: 'a(a|b)*' },
-                                    { desc: 'HW 7b. Empty or starts with a', re: 'e|a(a|b)*' },
                                 ].map((ex, i) => (
                                     <button
-                                        key={`nfa-json-${i}`}
+                                        key={`nfa-json-classic-${i}`}
+                                        onClick={() => {
+                                            const jsonBtn = document.getElementById('json-mode-button');
+                                            if (jsonBtn) jsonBtn.click();
+                                            setTimeout(() => {
+                                                const textarea = document.querySelector(
+                                                    '#json-input'
+                                                ) as HTMLTextAreaElement | null;
+                                                if (textarea) {
+                                                    const setter = Object.getOwnPropertyDescriptor(
+                                                        window.HTMLTextAreaElement.prototype,
+                                                        'value'
+                                                    )?.set;
+                                                    const json = regexToNFAJSON(ex.re);
+                                                    setter?.call(textarea, json);
+                                                    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                                                    textarea.focus();
+                                                }
+                                            }, 50);
+                                        }}
+                                        className="text-left bg-white hover:bg-amber-50 border border-gray-200 rounded p-2 transition"
+                                    >
+                                        <div className="text-gray-600 text-xs">{ex.desc}</div>
+                                        <code className="text-amber-600 text-xs block mt-0.5">{ex.re}</code>
+                                    </button>
+                                ))}
+                            </div>
+
+                            <p className="text-gray-400 text-[0.65rem] mt-4 mb-1 font-semibold">NFA JSON — SIPSER HW #2</p>
+                            <div className="flex flex-col gap-2">
+                                {[
+                                    { desc: '1a. The language {0}', re: '0' },
+                                    { desc: '1b. Strings ending in 00', re: '(0|1)*00' },
+                                    { desc: '2a. Starts 1 ends 0, OR ≥3 ones', re: '1(0|1)*0|(0|1)*1(0|1)*1(0|1)*1(0|1)*' },
+                                    { desc: '7a. Strings starting with a', re: 'a(a|b)*' },
+                                    { desc: '7b. Empty or starts with a', re: 'e|a(a|b)*' },
+                                    { desc: 'Ends with 010', re: '(0|1)*010' },
+                                ].map((ex, i) => (
+                                    <button
+                                        key={`nfa-json-hw-${i}`}
                                         onClick={() => {
                                             const jsonBtn = document.getElementById('json-mode-button');
                                             if (jsonBtn) jsonBtn.click();
