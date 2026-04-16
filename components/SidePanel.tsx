@@ -9,6 +9,7 @@ import Parser from '../classes/Parser';
 import ThompsonParser from '../classes/ThompsonParser';
 import { generateNodesAndLinks } from '../utils/graph';
 import { nfaToGraph } from '../utils/nfaGraph';
+import { EPSILON_SYMBOL } from '../constants/nfa';
 import { parseAndBuildDFA, validateConstraint } from '../utils/constraint';
 import { useDfaStore } from '../store/dfaStore';
 import { testLog } from '../tests/log';
@@ -381,16 +382,13 @@ function SidePanel(props: PropsInterface) {
             return;
         }
 
-        // Expected format:
-        // {
-        //   "alphabet": ["a", "b"],
-        //   "states": ["q1", "q2", ...],
-        //   "start": "q1",
-        //   "accept": ["q2"],
-        //   "transitions": { "q1": { "a": "q2", "b": "q1" }, ... }
-        // }
+        // DFA format: transitions value is a string (single target)
+        //   { "q1": { "a": "q2", "b": "q1" } }
+        // NFA format: type: "NFA", transitions value is an array (multiple targets)
+        //   { "type": "NFA", "transitions": { "q1": { "a": ["q1", "q2"], "ε": ["q3"] } } }
         const { states: stateNames, start, accept, transitions } = parsed;
         const jsonAlphabet = parsed.alphabet;
+        const isNFA = parsed.type === 'NFA';
 
         if (!stateNames || !start || !accept || !transitions) {
             setRegexError('JSON must have: states, start, accept, transitions');
@@ -420,26 +418,37 @@ function SidePanel(props: PropsInterface) {
             values: [nameToId[name]],
             group: 1,
             isFinalState: acceptSet.has(name),
+            isStartState: name === start,
         }));
 
         const importedLinks: LinkInterface[] = [];
         const linkMap: Record<string, { source: NodeInterface; target: NodeInterface; symbols: string[] }> = {};
 
-        for (const [srcName, trans] of Object.entries(transitions as Record<string, Record<string, string>>)) {
+        // Helper: add a single edge
+        const addEdge = (srcNode: NodeInterface, tgtNode: NodeInterface, sym: string) => {
+            const key = `${srcNode.id}->${tgtNode.id}`;
+            if (linkMap[key]) {
+                if (!linkMap[key].symbols.includes(sym)) {
+                    linkMap[key].symbols.push(sym);
+                }
+            } else {
+                linkMap[key] = { source: srcNode, target: tgtNode, symbols: [sym] };
+            }
+        };
+
+        for (const [srcName, trans] of Object.entries(transitions as Record<string, any>)) {
             const srcId = nameToId[srcName];
             const srcNode = importedNodes.find((n) => n.id === srcId);
             if (!srcNode) continue;
 
-            for (const [sym, tgtName] of Object.entries(trans)) {
-                const tgtId = nameToId[tgtName];
-                const tgtNode = importedNodes.find((n) => n.id === tgtId);
-                if (!tgtNode) continue;
-
-                const key = `${srcId}->${tgtId}`;
-                if (linkMap[key]) {
-                    linkMap[key].symbols.push(sym);
-                } else {
-                    linkMap[key] = { source: srcNode, target: tgtNode, symbols: [sym] };
+            for (const [sym, targets] of Object.entries(trans)) {
+                // Normalize targets: DFA is single string, NFA is array
+                const targetList: string[] = Array.isArray(targets) ? targets as string[] : [targets as string];
+                for (const tgtName of targetList) {
+                    const tgtId = nameToId[tgtName];
+                    const tgtNode = importedNodes.find((n) => n.id === tgtId);
+                    if (!tgtNode) continue;
+                    addEdge(srcNode, tgtNode, sym);
                 }
             }
         }
@@ -456,8 +465,47 @@ function SidePanel(props: PropsInterface) {
         setLinks(importedLinks);
         setInputString('');
 
+        // If NFA, also populate the NFA data structure for simulation + conversion
+        if (isNFA) {
+            const nfaStates = (stateNames as string[]).map((name) => ({
+                id: nameToId[name],
+                isFinal: acceptSet.has(name),
+            }));
+            const nfaTransitions: { from: number; to: number; symbol: string | null }[] = [];
+            for (const [srcName, trans] of Object.entries(transitions as Record<string, any>)) {
+                const srcId = nameToId[srcName];
+                for (const [sym, targets] of Object.entries(trans)) {
+                    const targetList: string[] = Array.isArray(targets) ? targets as string[] : [targets as string];
+                    for (const tgtName of targetList) {
+                        const tgtId = nameToId[tgtName];
+                        if (tgtId === undefined) continue;
+                        // Use null symbol for epsilon (symbol 'ε' in JSON)
+                        const internalSym = sym === EPSILON_SYMBOL || sym === 'ε' || sym === 'epsilon'
+                            ? null
+                            : sym;
+                        nfaTransitions.push({ from: srcId, to: tgtId, symbol: internalSym });
+                    }
+                }
+            }
+            setNfaData({
+                states: nfaStates,
+                startState: nameToId[start],
+                acceptStates: (accept as string[]).map((a) => nameToId[a]),
+                transitions: nfaTransitions,
+                alphabet: jsonAlphabet || alphabet,
+            });
+            setAutomatonMode('NFA');
+        } else {
+            setNfaData(null);
+            setAutomatonMode('DFA');
+        }
+
+        const headerLabel = isNFA
+            ? `JSON NFA (${(stateNames as string[]).length} states)`
+            : `JSON (${(stateNames as string[]).length} states)`;
+
         const data = {
-            regex: `JSON (${(stateNames as string[]).length} states)`,
+            regex: headerLabel,
             nodes: importedNodes,
             links: importedLinks,
             alphabet: jsonAlphabet || alphabet,
@@ -466,7 +514,7 @@ function SidePanel(props: PropsInterface) {
         const dfaData = await addDfaToIdb(data);
         await getInputsFromIdb();
         setSelectedInput(dfaData.id);
-        setRegexHeader(`JSON (${(stateNames as string[]).length} states)`);
+        setRegexHeader(headerLabel);
         setIsFetching(false);
     };
 
@@ -645,6 +693,7 @@ function SidePanel(props: PropsInterface) {
                                     Constraint
                                 </button>
                                 <button
+                                    id="json-mode-button"
                                     type="button"
                                     onClick={() => { setInputMode('json'); setInputString(''); setRegexError(''); setIsInputValid(true); }}
                                     className={`flex-1 py-1 text-xs rounded-md border transition ${
@@ -671,6 +720,7 @@ function SidePanel(props: PropsInterface) {
                             {inputMode === 'json' ? (
                                 <div className="flex flex-col gap-2">
                                     <textarea
+                                        id="json-input"
                                         value={inputString}
                                         placeholder={'{\n  "alphabet": ["a","b"],\n  "states": ["q1","q2"],\n  "start": "q1",\n  "accept": ["q2"],\n  "transitions": {\n    "q1": {"a":"q2","b":"q1"},\n    "q2": {"a":"q1","b":"q2"}\n  }\n}'}
                                         className="rounded-md w-full p-2 text-xs border border-gray-200 focus:outline-none focus:border-sky-500 font-mono"

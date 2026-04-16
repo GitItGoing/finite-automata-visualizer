@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { CSSTransition } from 'react-transition-group';
 import { LEGEND } from '../constants/legend';
 import Link from 'next/link';
+import { regexToDFAJSON, regexToNFAJSON } from '../utils/jsonExamples';
 
 interface PropsInterface {
     show: boolean;
@@ -284,8 +285,17 @@ function LegendPanel(props: PropsInterface) {
                         </CollapsibleSection>
 
                         <CollapsibleSection title="JSON Import / Export">
-                            <p>Import a DFA by pasting JSON or uploading a <code className="bg-gray-200 px-1 rounded">.json</code> file.</p>
-                            <p>Format:</p>
+                            <p>Import a DFA or NFA by pasting JSON or uploading a <code className="bg-gray-200 px-1 rounded">.json</code> file. Export the current automaton via the <strong>export</strong> button in the toolbar.</p>
+
+                            <p className="mt-2"><strong>Top-level fields:</strong></p>
+                            <p>• <code className="bg-gray-200 px-1 rounded">type</code> — <code className="bg-gray-200 px-1 rounded">"NFA"</code> for an NFA. Omit (or any other value) for a DFA.</p>
+                            <p>• <code className="bg-gray-200 px-1 rounded">alphabet</code> — array of symbols, e.g. <code className="bg-gray-200 px-1 rounded">["0","1"]</code></p>
+                            <p>• <code className="bg-gray-200 px-1 rounded">states</code> — array of state names, e.g. <code className="bg-gray-200 px-1 rounded">["q1","q2"]</code></p>
+                            <p>• <code className="bg-gray-200 px-1 rounded">start</code> — name of the start state</p>
+                            <p>• <code className="bg-gray-200 px-1 rounded">accept</code> — array of accepting state names</p>
+                            <p>• <code className="bg-gray-200 px-1 rounded">transitions</code> — object mapping each source state to a symbol→target map</p>
+
+                            <p className="mt-2"><strong>DFA transitions</strong> (single target per symbol):</p>
                             <pre className="bg-gray-200 rounded p-2 text-[0.65rem] overflow-x-auto whitespace-pre">{`{
   "alphabet": ["a","b"],
   "states": ["q1","q2"],
@@ -296,7 +306,126 @@ function LegendPanel(props: PropsInterface) {
     "q2": {"a":"q1","b":"q2"}
   }
 }`}</pre>
-                            <p>Export the current DFA as JSON using the <strong>export</strong> button in the toolbar.</p>
+
+                            <p className="mt-2"><strong>NFA transitions</strong> (array of targets, supports ε):</p>
+                            <pre className="bg-gray-200 rounded p-2 text-[0.65rem] overflow-x-auto whitespace-pre">{`{
+  "type": "NFA",
+  "alphabet": ["a","b"],
+  "states": ["q0","q1","q2"],
+  "start": "q0",
+  "accept": ["q2"],
+  "transitions": {
+    "q0": {"a":["q0","q1"], "ε":["q2"]},
+    "q1": {"b":["q2"]}
+  }
+}`}</pre>
+
+                            <p className="mt-2"><strong>Self-loops:</strong> to make state <code className="bg-gray-200 px-1 rounded">q1</code> loop on symbol <code className="bg-gray-200 px-1 rounded">a</code>, set the target to itself:</p>
+                            <pre className="bg-gray-200 rounded p-2 text-[0.65rem] overflow-x-auto whitespace-pre">{`// DFA self-loop:
+"q1": {"a":"q1"}
+
+// NFA self-loop (same idea, just in an array):
+"q1": {"a":["q1"]}`}</pre>
+
+                            <p className="mt-2"><strong>Special conventions:</strong></p>
+                            <p>• <strong>Start state</strong> must be in the <code className="bg-gray-200 px-1 rounded">states</code> array; its name is listed in <code className="bg-gray-200 px-1 rounded">start</code>.</p>
+                            <p>• <strong>Accepting state</strong> — just list its name in <code className="bg-gray-200 px-1 rounded">accept</code>. A state can be both start and accepting.</p>
+                            <p>• <strong>Dead state</strong> — optional. Any state name works; it's "dead" by virtue of not being in <code className="bg-gray-200 px-1 rounded">accept</code> and only self-looping.</p>
+                            <p>• <strong>Epsilon transition</strong> (NFA only) — use the symbol <code className="bg-gray-200 px-1 rounded">"ε"</code> or <code className="bg-gray-200 px-1 rounded">"epsilon"</code>.</p>
+                            <p>• Missing transitions (DFA) send the input to an implicit dead state.</p>
+
+                            <p className="mt-2 text-gray-400 text-[0.65rem]">When exporting, a <code className="bg-gray-200 px-1 rounded">description</code> field is included with human-readable transitions like <em>"if a, goes to q2"</em> / <em>"if b, self-loops"</em>. This is ignored on import.</p>
+                        </CollapsibleSection>
+
+                        <CollapsibleSection title="JSON Examples">
+                            <p className="italic">Tap an example to load its JSON into the JSON tab.</p>
+
+                            <p className="text-gray-400 text-[0.65rem] mt-2 mb-1 font-semibold">DFA JSON (from REGEX examples)</p>
+                            <div className="flex flex-col gap-2">
+                                {[
+                                    { desc: 'Contains at least three 1s', re: '(0|1)*1(0|1)*1(0|1)*1(0|1)*' },
+                                    { desc: 'Ends with 00', re: '(0|1)*00' },
+                                    { desc: 'Starts with 1 and ends with 0', re: '1(0|1)*0' },
+                                    { desc: 'Contains substring "ab"', re: '(a|b)*ab(a|b)*' },
+                                    { desc: 'Exactly 3 symbols long', re: '(a|b)(a|b)(a|b)' },
+                                    { desc: 'Even length (any binary string)', re: '((0|1)(0|1))*' },
+                                    { desc: 'HW 1a. {0}', re: '0' },
+                                    { desc: 'HW 3. Even 0s, odd 1s, no "01"', re: '1(11)*(00)*' },
+                                    { desc: 'HW 6. Equal count of 01 and 10', re: 'e|0|1|0(0|1)*0|1(0|1)*1' },
+                                    { desc: 'HW 7a. Strings starting with a', re: 'a(a|b)*' },
+                                    { desc: 'HW 7b. Empty or starts with a', re: 'e|a(a|b)*' },
+                                ].map((ex, i) => (
+                                    <button
+                                        key={`dfa-json-${i}`}
+                                        onClick={() => {
+                                            const jsonBtn = document.getElementById('json-mode-button');
+                                            if (jsonBtn) jsonBtn.click();
+                                            setTimeout(() => {
+                                                const textarea = document.querySelector(
+                                                    '#json-input'
+                                                ) as HTMLTextAreaElement | null;
+                                                if (textarea) {
+                                                    const setter = Object.getOwnPropertyDescriptor(
+                                                        window.HTMLTextAreaElement.prototype,
+                                                        'value'
+                                                    )?.set;
+                                                    const json = regexToDFAJSON(ex.re);
+                                                    setter?.call(textarea, json);
+                                                    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                                                    textarea.focus();
+                                                }
+                                            }, 50);
+                                        }}
+                                        className="text-left bg-white hover:bg-sky-50 border border-gray-200 rounded p-2 transition"
+                                    >
+                                        <div className="text-gray-600 text-xs">{ex.desc}</div>
+                                        <code className="text-sky-600 text-xs block mt-0.5">{ex.re}</code>
+                                    </button>
+                                ))}
+                            </div>
+
+                            <p className="text-gray-400 text-[0.65rem] mt-4 mb-1 font-semibold">NFA JSON (from NFA examples)</p>
+                            <div className="flex flex-col gap-2">
+                                {[
+                                    { desc: 'Simple union a|b', re: 'a|b' },
+                                    { desc: 'Kleene star a*', re: 'a*' },
+                                    { desc: 'Optional a then b', re: '(e|a)b' },
+                                    { desc: 'Concatenation chain', re: 'abc' },
+                                    { desc: 'Nested kleene (ab)*', re: '(ab)*' },
+                                    { desc: 'HW 1a. {0}', re: '0' },
+                                    { desc: 'HW 1b. Ends with 00', re: '(0|1)*00' },
+                                    { desc: 'HW 2a. Starts 1 ends 0, OR ≥3 ones', re: '1(0|1)*0|(0|1)*1(0|1)*1(0|1)*1(0|1)*' },
+                                    { desc: 'HW 7a. Starts with a', re: 'a(a|b)*' },
+                                    { desc: 'HW 7b. Empty or starts with a', re: 'e|a(a|b)*' },
+                                ].map((ex, i) => (
+                                    <button
+                                        key={`nfa-json-${i}`}
+                                        onClick={() => {
+                                            const jsonBtn = document.getElementById('json-mode-button');
+                                            if (jsonBtn) jsonBtn.click();
+                                            setTimeout(() => {
+                                                const textarea = document.querySelector(
+                                                    '#json-input'
+                                                ) as HTMLTextAreaElement | null;
+                                                if (textarea) {
+                                                    const setter = Object.getOwnPropertyDescriptor(
+                                                        window.HTMLTextAreaElement.prototype,
+                                                        'value'
+                                                    )?.set;
+                                                    const json = regexToNFAJSON(ex.re);
+                                                    setter?.call(textarea, json);
+                                                    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                                                    textarea.focus();
+                                                }
+                                            }, 50);
+                                        }}
+                                        className="text-left bg-white hover:bg-amber-50 border border-gray-200 rounded p-2 transition"
+                                    >
+                                        <div className="text-gray-600 text-xs">{ex.desc}</div>
+                                        <code className="text-amber-600 text-xs block mt-0.5">{ex.re}</code>
+                                    </button>
+                                ))}
+                            </div>
                         </CollapsibleSection>
 
                         <CollapsibleSection title="NFA Mode">

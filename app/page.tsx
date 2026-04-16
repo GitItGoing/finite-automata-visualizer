@@ -234,57 +234,92 @@ export default function Page() {
     const handleExportJSON = useCallback(() => {
         if (nodes.length === 0) return;
 
-        const stateLabel = (id: number, index: number) => {
+        const stateLabel = (id: number) => {
             if (id === -1) return 'dead';
-            return useQNotation ? `q${index + 1}` : `q${index + 1}`;
+            const n = nodes.find((x) => x.id === id);
+            if (!n) return `q${id}`;
+            const i = nodes.indexOf(n);
+            return `q${i + 1}`;
         };
 
-        // Build index lookup
-        const indexMap: Record<number, number> = {};
-        nodes.forEach((n, i) => { indexMap[n.id] = i; });
+        const stateNames = nodes.map((n) => stateLabel(n.id));
+        const startNode = nodes.find((n) => n.id === 1);
+        const startName = startNode ? stateLabel(startNode.id) : stateNames[0];
+        const acceptNames = nodes
+            .filter((n) => n.isFinalState)
+            .map((n) => stateLabel(n.id));
+
+        const isNFA = automatonMode === 'NFA';
+
+        // Structured (importable) format
+        const transitions: Record<string, Record<string, any>> = {};
+        for (const n of nodes) {
+            transitions[stateLabel(n.id)] = {};
+        }
+        for (const link of links) {
+            const srcName = stateLabel(link.source.id);
+            const tgtName = stateLabel(link.target.id);
+            const syms = link.transition.split(',');
+            for (const sym of syms) {
+                if (isNFA) {
+                    // Array of targets (may have multiple for same symbol)
+                    if (!transitions[srcName][sym]) transitions[srcName][sym] = [];
+                    if (!transitions[srcName][sym].includes(tgtName)) {
+                        transitions[srcName][sym].push(tgtName);
+                    }
+                } else {
+                    // Single target
+                    transitions[srcName][sym] = tgtName;
+                }
+            }
+        }
+
+        // Human-readable transition descriptions (for documentation)
+        const descriptions: Record<string, string[]> = {};
+        for (const n of nodes) {
+            const label = stateLabel(n.id);
+            const typeParts: string[] = [];
+            if (n.id === 1) typeParts.push('start');
+            if (n.isFinalState) typeParts.push('accepting');
+            if (n.id === -1) typeParts.push('dead');
+            if (typeParts.length === 0) typeParts.push('normal');
+
+            const outgoing = links.filter((l) => l.source.id === n.id);
+            const lines: string[] = [`type: ${typeParts.join(', ')}`];
+            for (const link of outgoing) {
+                const tgtLabel = stateLabel(link.target.id);
+                for (const sym of link.transition.split(',')) {
+                    if (link.source.id === link.target.id) {
+                        lines.push(`if ${sym}, self-loops`);
+                    } else {
+                        lines.push(`if ${sym}, goes to ${tgtLabel}`);
+                    }
+                }
+            }
+            descriptions[label] = lines;
+        }
 
         const result: Record<string, any> = {
             regex: regexHeader,
+            ...(isNFA ? { type: 'NFA' } : {}),
             alphabet: alphabet,
-            states: {},
+            states: stateNames,
+            start: startName,
+            accept: acceptNames,
+            transitions: transitions,
+            // Human-readable summary; ignored on import
+            description: descriptions,
         };
-
-        nodes.forEach((node, index) => {
-            const label = stateLabel(node.id, index);
-            const outgoing = links.filter((l) => l.source.id === node.id);
-
-            const transitions: string[] = [];
-            outgoing.forEach((link) => {
-                const targetIdx = indexMap[link.target.id];
-                const targetLabel = stateLabel(link.target.id, targetIdx !== undefined ? targetIdx : -1);
-                const symbols = link.transition.split(',');
-
-                symbols.forEach((sym) => {
-                    if (link.source.id === link.target.id) {
-                        transitions.push(`if ${sym}, self-loops`);
-                    } else {
-                        transitions.push(`if ${sym}, goes to ${targetLabel}`);
-                    }
-                });
-            });
-
-            result.states[label] = {
-                type: node.isFinalState ? 'accepting' : node.id === 1 ? 'start' : node.id === -1 ? 'dead' : 'normal',
-                transitions: transitions,
-            };
-
-            if (node.id === 1) result.states[label].type = node.isFinalState ? 'start, accepting' : 'start';
-        });
 
         const json = JSON.stringify(result, null, 2);
         const blob = new Blob([json], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `dfa-${regexHeader.replace(/[^a-zA-Z0-9]/g, '_')}.json`;
+        a.download = `${isNFA ? 'nfa' : 'dfa'}-${regexHeader.replace(/[^a-zA-Z0-9]/g, '_')}.json`;
         a.click();
         URL.revokeObjectURL(url);
-    }, [nodes, links, regexHeader, alphabet, useQNotation]);
+    }, [nodes, links, regexHeader, alphabet, automatonMode]);
 
     const disableAnimateInput = regexHeader.length === 0;
 
