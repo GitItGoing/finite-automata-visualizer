@@ -1,10 +1,7 @@
 import React from 'react';
 import {
-    getBezierPath,
     BaseEdge,
-    useStore,
     EdgeProps,
-    ReactFlowState,
     EdgeLabelRenderer,
 } from 'reactflow';
 
@@ -37,17 +34,10 @@ export default function BiDirectionalEdge({
     markerEnd,
     label,
     data,
+    style,
 }: EdgeProps) {
-    const isBiDirectionEdge = useStore((s: ReactFlowState) => {
-        const edgeExists = s.edges.some(
-            (e) =>
-                (e.source === target && e.target === source) ||
-                (e.target === source && e.source === target)
-        );
-        return edgeExists;
-    });
-
     const active = data?.active || false;
+    const color = (style as any)?.stroke || data?.color || '#4a5568';
 
     const edgePathParams = {
         sourceX,
@@ -58,30 +48,33 @@ export default function BiDirectionalEdge({
         targetPosition,
     };
 
-    let path = '';
+    // Compute a curve offset perpendicular to the edge direction.
+    // For the two edges of a bidirectional pair, the offset alternates sign
+    // so the two arcs bow outward in opposite directions.
+    const dx = targetX - sourceX;
+    const dy = targetY - sourceY;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+    const magnitude = Math.max(40, dist * 0.25);
+    // Alternate offset sign based on source/target ordering so the paired
+    // edges do not overlap.
+    const sign = source < target ? 1 : -1;
+    const offset = sign * magnitude;
 
-    const calculateOffset = () => {
-        if (sourceX < targetX) {
-            return 40;
-        }
-        return -40;
-    };
+    const path = getSpecialPath(edgePathParams, offset);
 
-    if (isBiDirectionEdge) {
-        path = getSpecialPath(edgePathParams, calculateOffset());
-    } else {
-        [path] = getBezierPath(edgePathParams);
-    }
+    // Place label near the control point
+    const labelX = (sourceX + targetX) / 2;
+    const labelY = (sourceY + targetY) / 2 + offset / 2;
 
     return (
         <>
-            <BaseEdge path={path} markerEnd={markerEnd} style={{ strokeWidth: 1.5 }} />
+            <BaseEdge path={path} markerEnd={markerEnd} style={{ strokeWidth: 1.5, stroke: color }} />
             <EdgeLabelRenderer>
                 <p
                     style={{
                         position: 'absolute',
-                        transform: `translate(-50%, -50%) translate(${(sourceX + targetX) / 2}px,${(sourceY + targetY + calculateOffset()) / 2}px)`,
-                        backgroundColor: '#4a5568',
+                        transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+                        backgroundColor: color,
                         color: '#fff',
                         fontSize: '0.8rem',
                         fontWeight: 600,

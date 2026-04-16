@@ -54,6 +54,7 @@ export default function Page() {
     const [showWelcomeModal, setShowWelcomeModal] = useState<boolean>(false);
     const [useQNotation, setUseQNotation] = useState<boolean>(false);
     const [useDoubleRing, setUseDoubleRing] = useState<boolean>(false);
+    const [colorEdges, setColorEdges] = useState<boolean>(true);
     const [darkMode, setDarkMode] = useState<boolean>(false);
     const [alphabet, setAlphabet] = useState<string[]>(['a', 'b']);
 
@@ -692,6 +693,16 @@ export default function Page() {
                             double ring
                         </button>
                         <button
+                            onClick={() => setColorEdges(!colorEdges)}
+                            className={`px-3 py-1 rounded-full text-xs font-medium transition duration-200 border ${
+                                colorEdges
+                                    ? 'bg-sky-500 text-white border-sky-500'
+                                    : 'bg-gray-50 text-gray-500 border-gray-300 hover:border-sky-400'
+                            }`}
+                        >
+                            color edges
+                        </button>
+                        <button
                             onClick={() => setDarkMode(!darkMode)}
                             className={`px-3 py-1 rounded-full text-xs font-medium transition duration-200 border ${
                                 darkMode
@@ -744,6 +755,8 @@ export default function Page() {
                         links={links}
                         useQNotation={useQNotation}
                         useDoubleRing={useDoubleRing}
+                        colorEdges={colorEdges}
+                        alphabet={alphabet}
                         onEdgeClick={handleEdgeClick}
                         onNodeClick={handleNodeTap}
                     />

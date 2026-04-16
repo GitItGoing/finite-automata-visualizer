@@ -10,8 +10,9 @@ import {
 import { getEdgeParams } from '../utils/reactflow';
 
 function FloatingEdge(props: EdgeProps) {
-    const { id, source, target, markerEnd, label, data } = props;
+    const { id, source, target, markerEnd, label, data, style } = props;
     const active = data?.active || false;
+    const color = (style as any)?.stroke || data?.color || '#4a5568';
 
     const sourceNode = useStore(
         useCallback((store) => store.nodeInternals.get(source), [source])
@@ -56,11 +57,13 @@ function FloatingEdge(props: EdgeProps) {
         labelX = (sx + tx) / 2;
         labelY = (sy + ty) / 2;
     } else {
-        // Add curvature offset so edges arc like in textbook diagrams
+        // Add curvature offset so edges arc like in textbook diagrams.
+        // Minimum curvature is enforced so arrows always visibly bend,
+        // regardless of whether nodes are aligned horizontally/vertically.
         const dx = tx - sx;
         const dy = ty - sy;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        const curvatureOffset = Math.max(30, dist * 0.25);
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        const curvatureOffset = Math.max(50, dist * 0.3);
 
         // Perpendicular direction vectors (two options: left or right of the edge)
         const perpX = -dy / dist;
@@ -98,13 +101,13 @@ function FloatingEdge(props: EdgeProps) {
 
     return (
         <>
-            <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} style={{ strokeWidth: 1.5 }} />
+            <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} style={{ strokeWidth: 1.5, stroke: color }} />
             <EdgeLabelRenderer>
                 <p
                     style={{
                         position: 'absolute',
                         transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
-                        backgroundColor: '#4a5568',
+                        backgroundColor: color,
                         color: '#fff',
                         fontSize: '0.8rem',
                         fontWeight: 600,

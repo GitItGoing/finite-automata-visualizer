@@ -83,8 +83,100 @@ function LegendPanel(props: PropsInterface) {
                             <p>Concatenation is automatic: type <code className="bg-gray-200 px-1 rounded">ab</code> and it is read as <code className="bg-gray-200 px-1 rounded">a.b</code>.</p>
                             <p>Union: <code className="bg-gray-200 px-1 rounded">a|b</code> means either a or b.</p>
                             <p>Kleene Star: <code className="bg-gray-200 px-1 rounded">a*</code> means zero or more a's.</p>
-                            <p>Epsilon: Use <code className="bg-gray-200 px-1 rounded">e</code> for the empty string.</p>
+                            <p>Epsilon: Use <code className="bg-gray-200 px-1 rounded">e</code> anywhere to mean the empty string (e.g., <code className="bg-gray-200 px-1 rounded">a|e</code> matches "a" or "").</p>
+                            <p>The alphabet is auto-inferred from your regex — no need to set it manually.</p>
                             <p>Example: <code className="bg-gray-200 px-1 rounded">ab*|ba</code></p>
+                        </CollapsibleSection>
+
+                        <CollapsibleSection title="Regex Examples">
+                            <p className="italic">Tap an example to try it:</p>
+                            <p className="text-gray-400 text-[0.65rem] mt-2 mb-1 font-semibold">BASIC PATTERNS</p>
+                            <div className="flex flex-col gap-2">
+                                {[
+                                    { desc: 'Contains at least three 1s', re: '(0|1)*1(0|1)*1(0|1)*1(0|1)*' },
+                                    { desc: 'Length ≥ 3 and third symbol is 0', re: '(0|1)(0|1)0(0|1)*' },
+                                    { desc: 'Ends with b', re: '(a|b)*b' },
+                                    { desc: 'Starts with a', re: 'a(a|b)*' },
+                                    { desc: 'Contains substring "ab"', re: '(a|b)*ab(a|b)*' },
+                                    { desc: 'Exactly 3 symbols long', re: '(a|b)(a|b)(a|b)' },
+                                    { desc: 'Zero or more a\'s then a b', re: 'a*b' },
+                                    { desc: 'Even number of 0s', re: '(1|01*0)*' },
+                                    { desc: 'Empty string or a single a (uses e)', re: 'e|a' },
+                                    { desc: 'Optional a, then b (a? via e|a)', re: '(e|a)b' },
+                                    { desc: 'Optional prefix "ab", then c*', re: '(ab|e)c*' },
+                                    { desc: 'At most one a, any number of b\'s', re: 'b*(a|e)b*' },
+                                    { desc: 'Optional leading zero, then 1s', re: '(0|e)1*' },
+                                ].map((ex, i) => (
+                                    <button
+                                        key={i}
+                                        onClick={() => {
+                                            const input = document.querySelector(
+                                                '#side-panel input[type="text"]'
+                                            ) as HTMLInputElement | null;
+                                            if (input) {
+                                                const setter = Object.getOwnPropertyDescriptor(
+                                                    window.HTMLInputElement.prototype,
+                                                    'value'
+                                                )?.set;
+                                                setter?.call(input, ex.re);
+                                                input.dispatchEvent(new Event('input', { bubbles: true }));
+                                                input.focus();
+                                            }
+                                        }}
+                                        className="text-left bg-white hover:bg-sky-50 border border-gray-200 rounded p-2 transition"
+                                    >
+                                        <div className="text-gray-600 text-xs">{ex.desc}</div>
+                                        <code className="text-sky-600 text-xs block mt-0.5">{ex.re}</code>
+                                    </button>
+                                ))}
+                            </div>
+                            <p className="text-gray-400 text-[0.65rem] mt-4 mb-1 font-semibold">SIPSER HW #2 (BINARY ALPHABET)</p>
+                            <div className="flex flex-col gap-2">
+                                {[
+                                    { desc: '1a. The language {0}', re: '0' },
+                                    { desc: '1b. Strings ending in 00', re: '(0|1)*00' },
+                                    { desc: '2a. Starts with 1 and ends with 0, or has ≥3 ones', re: '1(0|1)*0|(0|1)*1(0|1)*1(0|1)*1(0|1)*' },
+                                    { desc: '2a (part 1). Starts with 1 and ends with 0', re: '1(0|1)*0' },
+                                    { desc: '2a (part 2). Contains at least three 1s', re: '(0|1)*1(0|1)*1(0|1)*1(0|1)*' },
+                                    { desc: '2b (part 1). Contains substring 1010', re: '(0|1)*1010(0|1)*' },
+                                    { desc: '2b (part 2). Does not contain substring 110', re: '(0|10)*1*' },
+                                    { desc: '3. Even 0s, odd 1s, no "01" substring', re: '1(11)*(00)*' },
+                                    { desc: '4. No pair of 1s separated by odd # symbols', re: '0*|0*10*|(00)*1(00)*10*|0(00)*1(00)*10*' },
+                                    { desc: '5 (n=2). Only 1s, even length', re: '(11)*' },
+                                    { desc: '5 (n=3). Only 1s, length multiple of 3', re: '(111)*' },
+                                    { desc: '6. Equal count of "01" and "10" substrings', re: 'e|0|1|0(0|1)*0|1(0|1)*1' },
+                                    { desc: '7a. Strings starting with a (NFA→DFA)', re: 'a(a|b)*' },
+                                    { desc: '7b. Empty or starts with a (NFA→DFA)', re: 'e|a(a|b)*' },
+                                    { desc: 'Bonus. No consecutive 1s (no "11")', re: '(0|10)*(e|1)' },
+                                    { desc: 'Ends with 010', re: '(0|1)*010' },
+                                    { desc: 'Starts with 00 or ends with 11', re: '00(0|1)*|(0|1)*11' },
+                                    { desc: 'Contains 000 and ends with 1', re: '(0|1)*000(0|1)*1' },
+                                    { desc: 'Even length (any binary string)', re: '((0|1)(0|1))*' },
+                                    { desc: 'Odd length (any binary string)', re: '(0|1)((0|1)(0|1))*' },
+                                ].map((ex, i) => (
+                                    <button
+                                        key={`sipser-${i}`}
+                                        onClick={() => {
+                                            const input = document.querySelector(
+                                                '#side-panel input[type="text"]'
+                                            ) as HTMLInputElement | null;
+                                            if (input) {
+                                                const setter = Object.getOwnPropertyDescriptor(
+                                                    window.HTMLInputElement.prototype,
+                                                    'value'
+                                                )?.set;
+                                                setter?.call(input, ex.re);
+                                                input.dispatchEvent(new Event('input', { bubbles: true }));
+                                                input.focus();
+                                            }
+                                        }}
+                                        className="text-left bg-white hover:bg-sky-50 border border-gray-200 rounded p-2 transition"
+                                    >
+                                        <div className="text-gray-600 text-xs">{ex.desc}</div>
+                                        <code className="text-sky-600 text-xs block mt-0.5">{ex.re}</code>
+                                    </button>
+                                ))}
+                            </div>
                         </CollapsibleSection>
 
                         <CollapsibleSection title="Constraint Language">
@@ -125,7 +217,6 @@ function LegendPanel(props: PropsInterface) {
                             <p><strong>q-notation</strong> — show states as q1, q2, q3.</p>
                             <p><strong>Double ring</strong> — accepting states use double circle border.</p>
                             <p><strong>Dark mode</strong> — inverts all colors.</p>
-                            <p><strong>Custom alphabet</strong> — change in the side panel (e.g., 0,1 or x,y).</p>
                         </CollapsibleSection>
 
                         <CollapsibleSection title="String Checking">
