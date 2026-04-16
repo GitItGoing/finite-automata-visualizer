@@ -5,23 +5,6 @@ import {
     EdgeLabelRenderer,
 } from 'reactflow';
 
-export type GetSpecialPathParams = {
-    sourceX: number;
-    sourceY: number;
-    targetX: number;
-    targetY: number;
-};
-
-export const getSpecialPath = (
-    { sourceX, sourceY, targetX, targetY }: GetSpecialPathParams,
-    offset: number
-) => {
-    const centerX = (sourceX + targetX) / 2;
-    const centerY = (sourceY + targetY) / 2;
-
-    return `M ${sourceX} ${sourceY} Q ${centerX} ${centerY + offset} ${targetX} ${targetY}`;
-};
-
 export default function BiDirectionalEdge({
     source,
     target,
@@ -39,32 +22,30 @@ export default function BiDirectionalEdge({
     const active = data?.active || false;
     const color = (style as any)?.stroke || data?.color || '#4a5568';
 
-    const edgePathParams = {
-        sourceX,
-        sourceY,
-        sourcePosition,
-        targetX,
-        targetY,
-        targetPosition,
-    };
-
-    // Compute a curve offset perpendicular to the edge direction.
-    // For the two edges of a bidirectional pair, the offset alternates sign
-    // so the two arcs bow outward in opposite directions.
+    // Compute perpendicular offset so the curve always bows to the side,
+    // even when nodes are vertically or horizontally aligned.
     const dx = targetX - sourceX;
     const dy = targetY - sourceY;
     const dist = Math.sqrt(dx * dx + dy * dy) || 1;
     const magnitude = Math.max(40, dist * 0.25);
-    // Alternate offset sign based on source/target ordering so the paired
-    // edges do not overlap.
     const sign = source < target ? 1 : -1;
-    const offset = sign * magnitude;
 
-    const path = getSpecialPath(edgePathParams, offset);
+    // Perpendicular unit vector (rotated 90 degrees from the edge direction)
+    const perpX = (-dy / dist) * magnitude * sign;
+    const perpY = (dx / dist) * magnitude * sign;
 
-    // Place label near the control point
-    const labelX = (sourceX + targetX) / 2;
-    const labelY = (sourceY + targetY) / 2 + offset / 2;
+    const midX = (sourceX + targetX) / 2;
+    const midY = (sourceY + targetY) / 2;
+
+    // Control point offset perpendicular to the edge, not just in Y
+    const ctrlX = midX + perpX;
+    const ctrlY = midY + perpY;
+
+    const path = `M ${sourceX} ${sourceY} Q ${ctrlX} ${ctrlY} ${targetX} ${targetY}`;
+
+    // Label at the bezier quarter-point (closer to the curve apex)
+    const labelX = (sourceX + 2 * ctrlX + targetX) / 4;
+    const labelY = (sourceY + 2 * ctrlY + targetY) / 4;
 
     return (
         <>

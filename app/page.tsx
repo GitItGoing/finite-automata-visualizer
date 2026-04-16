@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback, Suspense } from 'react';
-import { NodeInterface, LinkInterface } from '../interfaces/graph';
+import { NodeInterface, LinkInterface, AutomatonMode } from '../interfaces/graph';
+import { NFA } from '../interfaces/nfa';
 import DFA from '../components/DFA';
 import SidePanel from '../components/SidePanel';
 import LegendPanel from '../components/LegendPanel';
@@ -12,6 +13,9 @@ import 'driver.js/dist/driver.css';
 import { demoSelectedRegex } from '../constants/demo';
 
 import { minimizeDFA } from '../utils/minimize';
+import { simulateNFA } from '../utils/nfaSimulation';
+import { nfaToDFA } from '../utils/subsetConstruction';
+import { EPSILON_SYMBOL } from '../constants/nfa';
 
 import Icon from '@mdi/react';
 import {
@@ -57,6 +61,8 @@ export default function Page() {
     const [colorEdges, setColorEdges] = useState<boolean>(true);
     const [darkMode, setDarkMode] = useState<boolean>(false);
     const [alphabet, setAlphabet] = useState<string[]>(['a', 'b']);
+    const [automatonMode, setAutomatonMode] = useState<AutomatonMode>('DFA');
+    const [nfaData, setNfaData] = useState<NFA | null>(null);
 
     // Undo/Redo history stack
     interface HistoryEntry {
@@ -211,6 +217,20 @@ export default function Page() {
         setLinks(result.links);
     }, [nodes, links, pushHistory]);
 
+    const handleConvertToDFA = useCallback(() => {
+        if (!nfaData) return;
+        pushHistory();
+        const result = nfaToDFA(nfaData);
+        setNodes(result.nodes);
+        setLinks(result.links);
+        setAlphabet(result.alphabet);
+        setAutomatonMode('DFA');
+        setNfaData(null);
+        if (regexHeader && !regexHeader.endsWith(' (DFA)')) {
+            setRegexHeader(regexHeader + ' (DFA)');
+        }
+    }, [nfaData, pushHistory, regexHeader]);
+
     const handleExportJSON = useCallback(() => {
         if (nodes.length === 0) return;
 
@@ -321,13 +341,9 @@ export default function Page() {
     const pause = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
     const handleAnimate = async () => {
-        console.log('animating');
-        if (!isValidStringInput(stringInput)) {
-            return;
-        }
+        if (!isValidStringInput(stringInput)) return;
 
-        if (stringInput === 'e'){
-            console.log(nodes, 'nodes');
+        if (stringInput === 'e') {
             setAnimationLastIndex(1);
             return;
         }
@@ -336,58 +352,107 @@ export default function Page() {
         const nodesCopy = [...nodes];
         const linksCopy = [...links];
         const delay = 1000 / animationSpeed;
-        let currNode = 1;
 
-        for (let i = 0; i < stringInput.length; i++) {
-            const tempNodes = nodes.map((node) => {
-                if (node.id === currNode) {
-                    return {
-                        ...node,
-                        active: true,
-                    };
+        if (automatonMode === 'NFA' && nfaData) {
+            // --- NFA animation: multiple active states ---
+            const { steps } = simulateNFA(
+                nfaData.startState,
+                nfaData.acceptStates,
+                nfaData.transitions,
+                stringInput
+            );
+
+            // Build mapping: NFA state id → rendering node id
+            const nfaToNodeId = new Map<number, number>();
+            nodes.forEach((n) => {
+                if (n.values && n.values.length > 0) {
+                    nfaToNodeId.set(n.values[0], n.id);
                 }
-                return node;
             });
+
+            for (let i = 0; i < steps.length; i++) {
+                const step = steps[i];
+                const activeNodeIds = new Set(
+                    step.activeStates
+                        .map((s) => nfaToNodeId.get(s))
+                        .filter((id) => id !== undefined)
+                );
+
+                // Highlight active nodes
+                const tempNodes = nodes.map((node) => ({
+                    ...node,
+                    active: activeNodeIds.has(node.id),
+                }));
+                setNodes(tempNodes);
+
+                // Highlight traversed transitions
+                if (step.activeTransitions.length > 0) {
+                    const travKeys = new Set(
+                        step.activeTransitions.map(
+                            (t) => `${nfaToNodeId.get(t.from)}->${nfaToNodeId.get(t.to)}`
+                        )
+                    );
+                    const tempLinks = links.map((link) => ({
+                        ...link,
+                        active: travKeys.has(`${link.source.id}->${link.target.id}`),
+                    }));
+                    setLinks(tempLinks);
+                }
+
+                await pause(delay);
+                setNodes([...nodesCopy]);
+                setLinks([...linksCopy]);
+            }
+
+            // Final: check if any active state is accepting
+            const lastStep = steps[steps.length - 1];
+            const finalAccepting = lastStep.activeStates.some((s) =>
+                nfaData.acceptStates.includes(s)
+            );
+            setAnimationLastIndex(finalAccepting ? 1 : -999);
+        } else {
+            // --- DFA animation: single active state ---
+            let currNode = 1;
+
+            for (let i = 0; i < stringInput.length; i++) {
+                const tempNodes = nodes.map((node) => ({
+                    ...node,
+                    active: node.id === currNode,
+                }));
+                setNodes(tempNodes);
+                await pause(delay);
+                setNodes([...nodesCopy]);
+
+                const char = stringInput[i];
+                let nextNode = null;
+                const tempLinks = links.map((link) => {
+                    const transitionSymbols = link.transition.split(',');
+                    if (
+                        link.source.id === currNode &&
+                        transitionSymbols.includes(char)
+                    ) {
+                        nextNode = link.target.id;
+                        return { ...link, active: true };
+                    }
+                    return link;
+                });
+                setLinks(tempLinks);
+                await pause(delay);
+                setLinks([...linksCopy]);
+
+                currNode = nextNode;
+            }
+
+            const tempNodes = nodes.map((node) => ({
+                ...node,
+                active: node.id === currNode,
+            }));
+            setAnimationLastIndex(currNode);
             setNodes(tempNodes);
             await pause(delay);
             setNodes([...nodesCopy]);
-
-            const char = stringInput[i];
-            let nextNode = null;
-            const tempLinks = links.map((link) => {
-                const transitionSymbols = link.transition.split(',');
-                if (
-                    link.source.id === currNode &&
-                    transitionSymbols.includes(char)
-                ) {
-                    nextNode = link.target.id;
-                    return {
-                        ...link,
-                        active: true,
-                    };
-                }
-                return link;
-            });
-            setLinks(tempLinks);
-            await pause(delay);
-            setLinks([...linksCopy]);
-
-            currNode = nextNode;
         }
 
-        const tempNodes = nodes.map((node) => {
-            if (node.id === currNode) {
-                return {
-                    ...node,
-                    active: true,
-                };
-            }
-            return node;
-        });
-        setAnimationLastIndex(currNode);
-        setNodes(tempNodes);
-        await pause(delay);
-        setNodes([...nodesCopy]);
         setIsAnimating(false);
     };
 
@@ -712,14 +777,25 @@ export default function Page() {
                         >
                             dark mode
                         </button>
-                        <button
-                            onClick={handleMinimize}
-                            disabled={nodes.length === 0}
-                            className="px-3 py-1 rounded-full text-xs font-medium transition duration-200 border bg-gray-50 text-gray-500 border-gray-300 hover:border-sky-400 disabled:opacity-30 disabled:cursor-not-allowed"
-                            title="Minimize DFA using Table-Filling Method"
-                        >
-                            minimize
-                        </button>
+                        {automatonMode === 'DFA' ? (
+                            <button
+                                onClick={handleMinimize}
+                                disabled={nodes.length === 0}
+                                className="px-3 py-1 rounded-full text-xs font-medium transition duration-200 border bg-gray-50 text-gray-500 border-gray-300 hover:border-sky-400 disabled:opacity-30 disabled:cursor-not-allowed"
+                                title="Minimize DFA using Table-Filling Method"
+                            >
+                                minimize
+                            </button>
+                        ) : (
+                            <button
+                                onClick={handleConvertToDFA}
+                                disabled={!nfaData}
+                                className="px-3 py-1 rounded-full text-xs font-medium transition duration-200 border bg-amber-50 text-amber-600 border-amber-300 hover:border-amber-500 disabled:opacity-30 disabled:cursor-not-allowed"
+                                title="Convert NFA to DFA via subset construction"
+                            >
+                                NFA → DFA
+                            </button>
+                        )}
                         <button
                             onClick={handleExportJSON}
                             disabled={nodes.length === 0}
@@ -894,6 +970,8 @@ export default function Page() {
                             demoString={demoString}
                             alphabet={alphabet}
                             setAlphabet={setAlphabet}
+                            setAutomatonMode={setAutomatonMode}
+                            setNfaData={setNfaData}
                         />
                     </Suspense>
                 </section>
@@ -973,6 +1051,7 @@ export default function Page() {
                     onConfirm={handleAddArrow}
                     onCancel={() => setAddArrowDialog(null)}
                     nodeDisplayName={nodeDisplayName}
+                    isNFA={automatonMode === 'NFA'}
                 />
             )}
         </div>
@@ -986,6 +1065,7 @@ function AddArrowDialog({
     onConfirm,
     onCancel,
     nodeDisplayName,
+    isNFA = false,
 }: {
     fromId: number;
     toId: number;
@@ -993,6 +1073,7 @@ function AddArrowDialog({
     onConfirm: (direction: 'forward' | 'reverse' | 'both', symbols: string[]) => void;
     onCancel: () => void;
     nodeDisplayName: (id: number) => string;
+    isNFA?: boolean;
 }) {
     const [direction, setDirection] = useState<'forward' | 'reverse' | 'both'>('forward');
     const [selectedSymbols, setSelectedSymbols] = useState<Record<string, boolean>>({});
@@ -1005,7 +1086,8 @@ function AddArrowDialog({
         setSelectedSymbols((prev) => ({ ...prev, [sym]: !prev[sym] }));
     };
 
-    const chosenSymbols = alphabet.filter((s) => selectedSymbols[s]);
+    const allSymbols = isNFA ? [...alphabet, EPSILON_SYMBOL] : alphabet;
+    const chosenSymbols = allSymbols.filter((s) => selectedSymbols[s]);
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
@@ -1047,7 +1129,7 @@ function AddArrowDialog({
                 <div className="mb-4">
                     <label className="text-xs text-gray-500 block mb-1">Symbols</label>
                     <div className="flex gap-2">
-                        {alphabet.map((sym) => (
+                        {allSymbols.map((sym) => (
                             <button
                                 key={sym}
                                 onClick={() => toggleSymbol(sym)}

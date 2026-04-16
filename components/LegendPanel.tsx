@@ -86,6 +86,12 @@ function LegendPanel(props: PropsInterface) {
                             <p>Epsilon: Use <code className="bg-gray-200 px-1 rounded">e</code> anywhere to mean the empty string (e.g., <code className="bg-gray-200 px-1 rounded">a|e</code> matches "a" or "").</p>
                             <p>The alphabet is auto-inferred from your regex — no need to set it manually.</p>
                             <p>Example: <code className="bg-gray-200 px-1 rounded">ab*|ba</code></p>
+                            <p className="mt-2 pt-2 border-t border-gray-200">
+                                <strong>DFA vs NFA:</strong> The same regex can be plotted two ways:
+                            </p>
+                            <p>• <strong>Regex tab</strong> → direct <strong>DFA</strong> via Brzozowski's algorithm (minimal-ish, no ε-edges)</p>
+                            <p>• <strong>NFA tab</strong> → <strong>NFA</strong> via Thompson's construction (has ε-edges, often more states)</p>
+                            <p>Use the NFA tab to see the classic textbook NFA structure with ε-transitions, then click <strong>NFA → DFA</strong> in the toolbar to run subset construction. The standard pipeline: <code className="bg-gray-200 px-1 rounded">regex → NFA → DFA → minimize</code>.</p>
                         </CollapsibleSection>
 
                         <CollapsibleSection title="Regex Examples">
@@ -110,18 +116,22 @@ function LegendPanel(props: PropsInterface) {
                                     <button
                                         key={i}
                                         onClick={() => {
-                                            const input = document.querySelector(
-                                                '#side-panel input[type="text"]'
-                                            ) as HTMLInputElement | null;
-                                            if (input) {
-                                                const setter = Object.getOwnPropertyDescriptor(
-                                                    window.HTMLInputElement.prototype,
-                                                    'value'
-                                                )?.set;
-                                                setter?.call(input, ex.re);
-                                                input.dispatchEvent(new Event('input', { bubbles: true }));
-                                                input.focus();
-                                            }
+                                            const regexBtn = document.getElementById('regex-mode-button');
+                                            if (regexBtn) regexBtn.click();
+                                            setTimeout(() => {
+                                                const input = document.querySelector(
+                                                    '#regex-input'
+                                                ) as HTMLInputElement | null;
+                                                if (input) {
+                                                    const setter = Object.getOwnPropertyDescriptor(
+                                                        window.HTMLInputElement.prototype,
+                                                        'value'
+                                                    )?.set;
+                                                    setter?.call(input, ex.re);
+                                                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                                                    input.focus();
+                                                }
+                                            }, 50);
                                         }}
                                         className="text-left bg-white hover:bg-sky-50 border border-gray-200 rounded p-2 transition"
                                     >
@@ -157,23 +167,106 @@ function LegendPanel(props: PropsInterface) {
                                     <button
                                         key={`sipser-${i}`}
                                         onClick={() => {
-                                            const input = document.querySelector(
-                                                '#side-panel input[type="text"]'
-                                            ) as HTMLInputElement | null;
-                                            if (input) {
-                                                const setter = Object.getOwnPropertyDescriptor(
-                                                    window.HTMLInputElement.prototype,
-                                                    'value'
-                                                )?.set;
-                                                setter?.call(input, ex.re);
-                                                input.dispatchEvent(new Event('input', { bubbles: true }));
-                                                input.focus();
-                                            }
+                                            const regexBtn = document.getElementById('regex-mode-button');
+                                            if (regexBtn) regexBtn.click();
+                                            setTimeout(() => {
+                                                const input = document.querySelector(
+                                                    '#regex-input'
+                                                ) as HTMLInputElement | null;
+                                                if (input) {
+                                                    const setter = Object.getOwnPropertyDescriptor(
+                                                        window.HTMLInputElement.prototype,
+                                                        'value'
+                                                    )?.set;
+                                                    setter?.call(input, ex.re);
+                                                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                                                    input.focus();
+                                                }
+                                            }, 50);
                                         }}
                                         className="text-left bg-white hover:bg-sky-50 border border-gray-200 rounded p-2 transition"
                                     >
                                         <div className="text-gray-600 text-xs">{ex.desc}</div>
                                         <code className="text-sky-600 text-xs block mt-0.5">{ex.re}</code>
+                                    </button>
+                                ))}
+                            </div>
+                        </CollapsibleSection>
+
+                        <CollapsibleSection title="NFA Examples">
+                            <p className="italic">Tap an example to build the NFA from a regex via Thompson's construction.</p>
+                            <p className="text-gray-500">After the NFA is drawn, click <strong>NFA → DFA</strong> in the toolbar to convert via subset construction.</p>
+                            <p className="text-gray-400 text-[0.65rem] mt-2 mb-1 font-semibold">CLASSIC THOMPSON PATTERNS</p>
+                            <div className="flex flex-col gap-2">
+                                {[
+                                    { desc: 'Simple union (2 ε-branches from start)', re: 'a|b' },
+                                    { desc: 'Kleene star (4 ε-edges: bypass + loop)', re: 'a*' },
+                                    { desc: 'Optional \'a\' then \'b\' (uses e|a for optionality)', re: '(e|a)b' },
+                                    { desc: 'Concatenation chain', re: 'abc' },
+                                    { desc: 'Nested kleene (showcase ε-complexity)', re: '(ab)*' },
+                                ].map((ex, i) => (
+                                    <button
+                                        key={`nfa-classic-${i}`}
+                                        onClick={() => {
+                                            // Switch to NFA tab first
+                                            const nfaBtn = document.getElementById('nfa-mode-button');
+                                            if (nfaBtn) nfaBtn.click();
+                                            setTimeout(() => {
+                                                const input = document.querySelector(
+                                                    '#regex-input'
+                                                ) as HTMLInputElement | null;
+                                                if (input) {
+                                                    const setter = Object.getOwnPropertyDescriptor(
+                                                        window.HTMLInputElement.prototype,
+                                                        'value'
+                                                    )?.set;
+                                                    setter?.call(input, ex.re);
+                                                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                                                    input.focus();
+                                                }
+                                            }, 50);
+                                        }}
+                                        className="text-left bg-white hover:bg-amber-50 border border-gray-200 rounded p-2 transition"
+                                    >
+                                        <div className="text-gray-600 text-xs">{ex.desc}</div>
+                                        <code className="text-amber-600 text-xs block mt-0.5">{ex.re}</code>
+                                    </button>
+                                ))}
+                            </div>
+                            <p className="text-gray-400 text-[0.65rem] mt-4 mb-1 font-semibold">SIPSER HW #2 AS NFA</p>
+                            <div className="flex flex-col gap-2">
+                                {[
+                                    { desc: '1a. The language {0}', re: '0' },
+                                    { desc: '1b. Strings ending in 00', re: '(0|1)*00' },
+                                    { desc: '2a. Starts with 1 & ends with 0, OR ≥3 ones', re: '1(0|1)*0|(0|1)*1(0|1)*1(0|1)*1(0|1)*' },
+                                    { desc: '7a. Strings starting with \'a\'', re: 'a(a|b)*' },
+                                    { desc: '7b. Empty or starts with \'a\'', re: 'e|a(a|b)*' },
+                                    { desc: 'Ends with 010', re: '(0|1)*010' },
+                                ].map((ex, i) => (
+                                    <button
+                                        key={`nfa-hw-${i}`}
+                                        onClick={() => {
+                                            const nfaBtn = document.getElementById('nfa-mode-button');
+                                            if (nfaBtn) nfaBtn.click();
+                                            setTimeout(() => {
+                                                const input = document.querySelector(
+                                                    '#regex-input'
+                                                ) as HTMLInputElement | null;
+                                                if (input) {
+                                                    const setter = Object.getOwnPropertyDescriptor(
+                                                        window.HTMLInputElement.prototype,
+                                                        'value'
+                                                    )?.set;
+                                                    setter?.call(input, ex.re);
+                                                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                                                    input.focus();
+                                                }
+                                            }, 50);
+                                        }}
+                                        className="text-left bg-white hover:bg-amber-50 border border-gray-200 rounded p-2 transition"
+                                    >
+                                        <div className="text-gray-600 text-xs">{ex.desc}</div>
+                                        <code className="text-amber-600 text-xs block mt-0.5">{ex.re}</code>
                                     </button>
                                 ))}
                             </div>
@@ -204,6 +297,16 @@ function LegendPanel(props: PropsInterface) {
   }
 }`}</pre>
                             <p>Export the current DFA as JSON using the <strong>export</strong> button in the toolbar.</p>
+                        </CollapsibleSection>
+
+                        <CollapsibleSection title="NFA Mode">
+                            <p>Select the <strong>NFA</strong> tab in the side panel to build an NFA from a regex using Thompson's construction.</p>
+                            <p>NFA features vs DFA:</p>
+                            <p>- <strong>Epsilon transitions</strong> (ε) — moves without consuming input</p>
+                            <p>- <strong>Multiple active states</strong> — animation highlights all current states simultaneously</p>
+                            <p>- <strong>Nondeterminism</strong> — one symbol can lead to multiple states</p>
+                            <p>Click <strong>NFA → DFA</strong> in the toolbar to convert via subset construction.</p>
+                            <p>When adding arrows manually in NFA mode, ε is available as a transition symbol.</p>
                         </CollapsibleSection>
 
                         <CollapsibleSection title="Editing & Tools">
