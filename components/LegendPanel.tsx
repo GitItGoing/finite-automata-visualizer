@@ -111,7 +111,7 @@ function LegendPanel(props: PropsInterface) {
                                         key={i}
                                         onClick={() => {
                                             const input = document.querySelector(
-                                                '#side-panel input[type="text"]'
+                                                '#regex-input'
                                             ) as HTMLInputElement | null;
                                             if (input) {
                                                 const setter = Object.getOwnPropertyDescriptor(
@@ -158,7 +158,7 @@ function LegendPanel(props: PropsInterface) {
                                         key={`sipser-${i}`}
                                         onClick={() => {
                                             const input = document.querySelector(
-                                                '#side-panel input[type="text"]'
+                                                '#regex-input'
                                             ) as HTMLInputElement | null;
                                             if (input) {
                                                 const setter = Object.getOwnPropertyDescriptor(

@@ -658,6 +658,7 @@ function SidePanel(props: PropsInterface) {
                                 className="flex items-stretch"
                             >
                                 <input
+                                    id="regex-input"
                                     value={inputString}
                                     type="text"
                                     placeholder={inputMode === 'constraint' ? '!contains(bb) && endsWith(a)' : apps[selectedApp].placeholder}
