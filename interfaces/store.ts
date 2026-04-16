@@ -1,4 +1,5 @@
-import { NodeInterface, LinkInterface } from './graph';
+import { NodeInterface, LinkInterface, AutomatonMode } from './graph';
+import { NFA } from './nfa';
 
 export interface DFAStoreData {
     id: number;
@@ -7,6 +8,8 @@ export interface DFAStoreData {
     links: LinkInterface[];
     regex: string;
     alphabet?: string[];
+    mode?: AutomatonMode;
+    nfa?: NFA | null;
 }
 
 export interface DFAStoreState {

@@ -227,7 +227,9 @@ export default function Page() {
         setAutomatonMode('DFA');
         setNfaData(null);
         if (regexHeader && !regexHeader.endsWith(' (DFA)')) {
-            setRegexHeader(regexHeader + ' (DFA)');
+            // Strip trailing " (NFA)" if present so we don't get "x (NFA) (DFA)"
+            const base = regexHeader.replace(/ \(NFA\)$/, '');
+            setRegexHeader(base + ' (DFA)');
         }
     }, [nfaData, pushHistory, regexHeader]);
 
@@ -259,7 +261,7 @@ export default function Page() {
         for (const link of links) {
             const srcName = stateLabel(link.source.id);
             const tgtName = stateLabel(link.target.id);
-            const syms = link.transition.split(',');
+            const syms = link.transition.split(',').filter((s) => s !== '');
             for (const sym of syms) {
                 if (isNFA) {
                     // Array of targets (may have multiple for same symbol)
@@ -288,7 +290,7 @@ export default function Page() {
             const lines: string[] = [`type: ${typeParts.join(', ')}`];
             for (const link of outgoing) {
                 const tgtLabel = stateLabel(link.target.id);
-                for (const sym of link.transition.split(',')) {
+                for (const sym of link.transition.split(',').filter((s) => s !== '')) {
                     if (link.source.id === link.target.id) {
                         lines.push(`if ${sym}, self-loops`);
                     } else {
@@ -444,7 +446,22 @@ export default function Page() {
             const finalAccepting = lastStep.activeStates.some((s) =>
                 nfaData.acceptStates.includes(s)
             );
-            setAnimationLastIndex(finalAccepting ? 1 : -999);
+            // Set animationLastIndex to a node id matching the accept/reject result
+            // so the existing isValidRegex check (which compares animationLastIndex
+            // against final-state node ids) works correctly.
+            if (finalAccepting) {
+                const acceptedNfaState = lastStep.activeStates.find((s) =>
+                    nfaData.acceptStates.includes(s)
+                );
+                const acceptingNodeId = acceptedNfaState !== undefined
+                    ? nfaToNodeId.get(acceptedNfaState)
+                    : nodes.find((n) => n.isFinalState)?.id;
+                setAnimationLastIndex(acceptingNodeId ?? 1);
+            } else {
+                // Use a non-accepting node id (start state if it isn't accepting)
+                const nonAcceptingNode = nodes.find((n) => !n.isFinalState);
+                setAnimationLastIndex(nonAcceptingNode?.id ?? -1);
+            }
         } else {
             // --- DFA animation: single active state ---
             let currNode = 1;

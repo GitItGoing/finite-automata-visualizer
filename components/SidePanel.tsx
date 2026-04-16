@@ -297,6 +297,9 @@ function SidePanel(props: PropsInterface) {
         const firstPos = parser.firstPos;
         const followPos = parser.followPos;
         const { nodes, links } = generateNodesAndLinks(firstPos, followPos);
+        // Switch back to DFA mode (a regex always produces a DFA via Brzozowski)
+        setAutomatonMode('DFA');
+        setNfaData(null);
         setNodes(nodes);
         setLinks(links);
         testLog(nodes, links, followPos);
@@ -307,6 +310,8 @@ function SidePanel(props: PropsInterface) {
             nodes: nodes,
             links: links,
             alphabet: effectiveAlphabet,
+            mode: 'DFA' as const,
+            nfa: null,
         };
         setIsFetching(true);
         const dfaData = await addDfaToIdb(data);
@@ -325,6 +330,9 @@ function SidePanel(props: PropsInterface) {
         }
         setNodes(result.nodes);
         setLinks(result.links);
+        // Constraint mode produces a DFA via product construction
+        setAutomatonMode('DFA');
+        setNfaData(null);
         setInputString('');
 
         const data = {
@@ -332,6 +340,8 @@ function SidePanel(props: PropsInterface) {
             nodes: result.nodes,
             links: result.links,
             alphabet: alphabet,
+            mode: 'DFA' as const,
+            nfa: null,
         };
         setIsFetching(true);
         const dfaData = await addDfaToIdb(data);
@@ -359,6 +369,8 @@ function SidePanel(props: PropsInterface) {
                 nodes: nodes,
                 links: links,
                 alphabet: nfa.alphabet,
+                mode: 'NFA' as const,
+                nfa: nfa,
             };
             setIsFetching(true);
             const dfaData = await addDfaToIdb(data);
@@ -405,11 +417,15 @@ function SidePanel(props: PropsInterface) {
         const nameToId: Record<string, number> = {};
         const acceptSet = new Set(accept as string[]);
 
-        // Start state gets id 1
+        // Start state gets id 1; "dead" state name (DFA convention) gets id -1
         nameToId[start] = 1;
         let nextId = 2;
         (stateNames as string[]).forEach((name) => {
             if (name === start) return;
+            if (!isNFA && name === 'dead') {
+                nameToId[name] = -1;
+                return;
+            }
             nameToId[name] = nextId++;
         });
 
@@ -466,6 +482,7 @@ function SidePanel(props: PropsInterface) {
         setInputString('');
 
         // If NFA, also populate the NFA data structure for simulation + conversion
+        let importedNfa: any = null;
         if (isNFA) {
             const nfaStates = (stateNames as string[]).map((name) => ({
                 id: nameToId[name],
@@ -487,13 +504,14 @@ function SidePanel(props: PropsInterface) {
                     }
                 }
             }
-            setNfaData({
+            importedNfa = {
                 states: nfaStates,
                 startState: nameToId[start],
                 acceptStates: (accept as string[]).map((a) => nameToId[a]),
                 transitions: nfaTransitions,
                 alphabet: jsonAlphabet || alphabet,
-            });
+            };
+            setNfaData(importedNfa);
             setAutomatonMode('NFA');
         } else {
             setNfaData(null);
@@ -509,6 +527,8 @@ function SidePanel(props: PropsInterface) {
             nodes: importedNodes,
             links: importedLinks,
             alphabet: jsonAlphabet || alphabet,
+            mode: (isNFA ? 'NFA' : 'DFA') as 'NFA' | 'DFA',
+            nfa: importedNfa,
         };
         setIsFetching(true);
         const dfaData = await addDfaToIdb(data);
@@ -535,6 +555,14 @@ function SidePanel(props: PropsInterface) {
         if (dfaData?.alphabet) {
             setAlphabet(dfaData.alphabet);
             setAlphabetInput(dfaData.alphabet.join(','));
+        }
+        // Restore mode + NFA data so animation/conversion behave correctly
+        if (dfaData?.mode === 'NFA' && dfaData?.nfa) {
+            setAutomatonMode('NFA');
+            setNfaData(dfaData.nfa);
+        } else {
+            setAutomatonMode('DFA');
+            setNfaData(null);
         }
     };
 
