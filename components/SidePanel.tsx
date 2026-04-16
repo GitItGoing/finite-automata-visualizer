@@ -622,6 +622,7 @@ function SidePanel(props: PropsInterface) {
                             </div>
                             <div className="mb-2 flex gap-1">
                                 <button
+                                    id="regex-mode-button"
                                     type="button"
                                     onClick={() => { setInputMode('regex'); setInputString(''); setRegexError(''); setIsInputValid(true); }}
                                     className={`flex-1 py-1 text-xs rounded-md border transition ${
@@ -655,6 +656,7 @@ function SidePanel(props: PropsInterface) {
                                     JSON
                                 </button>
                                 <button
+                                    id="nfa-mode-button"
                                     type="button"
                                     onClick={() => { setInputMode('nfa'); setInputString(''); setRegexError(''); setIsInputValid(true); }}
                                     className={`flex-1 py-1 text-xs rounded-md border transition ${
