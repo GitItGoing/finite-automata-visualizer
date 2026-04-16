@@ -1,8 +1,11 @@
+export type AutomatonMode = 'DFA' | 'NFA';
+
 export interface NodeInterface {
     id: number;
     values: number[];
     group: number;
     isFinalState: boolean;
+    isStartState?: boolean;
     active?: boolean; // for highlighting (optional)
 }
 

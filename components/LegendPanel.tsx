@@ -206,6 +206,16 @@ function LegendPanel(props: PropsInterface) {
                             <p>Export the current DFA as JSON using the <strong>export</strong> button in the toolbar.</p>
                         </CollapsibleSection>
 
+                        <CollapsibleSection title="NFA Mode">
+                            <p>Select the <strong>NFA</strong> tab in the side panel to build an NFA from a regex using Thompson's construction.</p>
+                            <p>NFA features vs DFA:</p>
+                            <p>- <strong>Epsilon transitions</strong> (ε) — moves without consuming input</p>
+                            <p>- <strong>Multiple active states</strong> — animation highlights all current states simultaneously</p>
+                            <p>- <strong>Nondeterminism</strong> — one symbol can lead to multiple states</p>
+                            <p>Click <strong>NFA → DFA</strong> in the toolbar to convert via subset construction.</p>
+                            <p>When adding arrows manually in NFA mode, ε is available as a transition symbol.</p>
+                        </CollapsibleSection>
+
                         <CollapsibleSection title="Editing & Tools">
                             <p><strong>Click an edge</strong> to delete a transition.</p>
                             <p><strong>Tap two nodes</strong> to add a new transition (or tap one twice for a self-loop).</p>

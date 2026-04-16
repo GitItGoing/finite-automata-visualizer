@@ -6,7 +6,9 @@ import Icon from '@mdi/react';
 import { mdiResistorNodes, mdiCheckAll, mdiRocketLaunchOutline } from '@mdi/js';
 
 import Parser from '../classes/Parser';
+import ThompsonParser from '../classes/ThompsonParser';
 import { generateNodesAndLinks } from '../utils/graph';
+import { nfaToGraph } from '../utils/nfaGraph';
 import { parseAndBuildDFA, validateConstraint } from '../utils/constraint';
 import { useDfaStore } from '../store/dfaStore';
 import { testLog } from '../tests/log';
@@ -37,6 +39,8 @@ interface PropsInterface {
     demoString: string;
     alphabet: string[];
     setAlphabet: Function;
+    setAutomatonMode: Function;
+    setNfaData: Function;
 }
 
 function SidePanel(props: PropsInterface) {
@@ -51,6 +55,8 @@ function SidePanel(props: PropsInterface) {
         isAnimating,
         alphabet,
         setAlphabet,
+        setAutomatonMode,
+        setNfaData,
     } = props;
     const searchParams = useSearchParams();
     const paramsRegex = searchParams.get('regex');
@@ -66,7 +72,7 @@ function SidePanel(props: PropsInterface) {
     const [stringChecker, setStringChecker] = useState<boolean | null>(null);
     const [regexError, setRegexError] = useState('');
     const [alphabetInput, setAlphabetInput] = useState(alphabet.join(','));
-    const [inputMode, setInputMode] = useState<'regex' | 'constraint' | 'json'>('regex');
+    const [inputMode, setInputMode] = useState<'regex' | 'constraint' | 'json' | 'nfa'>('regex');
 
     const dropRef = useRef(null);
     const dropBtnRef = useRef(null);
@@ -136,6 +142,8 @@ function SidePanel(props: PropsInterface) {
                 generateFromJSON(inputString.trim());
             } else if (inputMode === 'constraint') {
                 generateFromConstraint(inputString.trim());
+            } else if (inputMode === 'nfa') {
+                generateNFA(inputString.trim());
             } else {
                 generateDFA(inputString.trim());
             }
@@ -235,7 +243,7 @@ function SidePanel(props: PropsInterface) {
     const handleInputChange = (e) => {
         const input = inputMode === 'json' || inputMode === 'constraint'
             ? e.target.value
-            : e.target.value.toLowerCase();
+            : e.target.value.toLowerCase(); // regex & nfa modes get lowercased
         if (selectedApp === 0) {
             if (inputMode === 'json') {
                 setIsInputValid(true);
@@ -330,6 +338,37 @@ function SidePanel(props: PropsInterface) {
         setSelectedInput(dfaData.id);
         setRegexHeader(constraintStr);
         setIsFetching(false);
+    };
+
+    const generateNFA = async (regexStr: string) => {
+        try {
+            const thompson = new ThompsonParser(regexStr);
+            const nfa = thompson.nfa;
+            const { nodes, links } = nfaToGraph(nfa);
+            setNodes(nodes);
+            setLinks(links);
+            setAutomatonMode('NFA');
+            setNfaData(nfa);
+            setInputString('');
+            setAlphabet(nfa.alphabet);
+            setAlphabetInput(nfa.alphabet.join(','));
+
+            const data = {
+                regex: regexStr + ' (NFA)',
+                nodes: nodes,
+                links: links,
+                alphabet: nfa.alphabet,
+            };
+            setIsFetching(true);
+            const dfaData = await addDfaToIdb(data);
+            await getInputsFromIdb();
+            setSelectedInput(dfaData.id);
+            setRegexHeader(regexStr + ' (NFA)');
+            setIsFetching(false);
+        } catch (e) {
+            setRegexError('Error building NFA: ' + (e as Error).message);
+            setIsInputValid(false);
+        }
     };
 
     const generateFromJSON = async (jsonStr: string) => {
@@ -490,7 +529,7 @@ function SidePanel(props: PropsInterface) {
     // Re-validate the input whenever the alphabet changes, so a stale error
     // from a previous alphabet state doesn't keep the submit button disabled.
     useEffect(() => {
-        if (!inputString || inputMode === 'json') return;
+        if (!inputString || inputMode === 'json' || inputMode === 'nfa') return;
         const error =
             inputMode === 'constraint'
                 ? validateConstraint(inputString)
@@ -615,6 +654,17 @@ function SidePanel(props: PropsInterface) {
                                 >
                                     JSON
                                 </button>
+                                <button
+                                    type="button"
+                                    onClick={() => { setInputMode('nfa'); setInputString(''); setRegexError(''); setIsInputValid(true); }}
+                                    className={`flex-1 py-1 text-xs rounded-md border transition ${
+                                        inputMode === 'nfa'
+                                            ? 'bg-amber-500 text-white border-amber-500'
+                                            : 'bg-white text-gray-500 border-gray-200 hover:border-amber-400'
+                                    }`}
+                                >
+                                    NFA
+                                </button>
                             </div>
                             {inputMode === 'json' ? (
                                 <div className="flex flex-col gap-2">
@@ -661,7 +711,7 @@ function SidePanel(props: PropsInterface) {
                                     id="regex-input"
                                     value={inputString}
                                     type="text"
-                                    placeholder={inputMode === 'constraint' ? '!contains(bb) && endsWith(a)' : apps[selectedApp].placeholder}
+                                    placeholder={inputMode === 'constraint' ? '!contains(bb) && endsWith(a)' : inputMode === 'nfa' ? 'ab*|ba (builds NFA)' : apps[selectedApp].placeholder}
                                     className="rounded-l-md w-full p-2 border border-gray-200 focus:outline-none focus:border-sky-500"
                                     onChange={handleInputChange}
                                     onKeyDown={(e) => {
